@@ -1,3 +1,4 @@
+//vim: expandtab shiftwidth=4 tabstop=8 softtabstop=4 encoding=utf-8 textwidth=99
 // Gnome Shell Window List v0.1
 // for GNOME Shell 3.0.2
 // Kurt Rottmann <kurtrottmann@gmail.com>
@@ -27,29 +28,26 @@ AppMenuButton.prototype = {
 
     _init: function(app, metaWindow, animation) {
 
-		this.actor = new St.Bin({ style_class: 'panel-button',
+        this.actor = new St.Bin({ style_class: 'panel-button',
                                   reactive: true,
                                   can_focus: true,
                                   x_fill: true,
                                   y_fill: false,
                                   track_hover: true });
         this.actor._delegate = this;
-        this.actor.connect('button-press-event', Lang.bind(this,
-												this._onButtonPress));
+        this.actor.connect('button-press-event', Lang.bind(this, this._onButtonPress));
         this.metaWindow = metaWindow;
         this.app = app;
         
         this.metaWindow.connect('notify::title', Lang.bind(this, this._onTitleChange));
-		
+
         let bin = new St.Bin({ name: 'appMenu' });
         this.actor.set_child(bin);
 
         this._container = new Shell.GenericContainer();
         bin.set_child(this._container);
-        this._container.connect('get-preferred-width',
-								Lang.bind(this, this._getContentPreferredWidth));
-        this._container.connect('get-preferred-height',
-								Lang.bind(this, this._getContentPreferredHeight));
+        this._container.connect('get-preferred-width', Lang.bind(this, this._getContentPreferredWidth));
+        this._container.connect('get-preferred-height', Lang.bind(this, this._getContentPreferredHeight));
         this._container.connect('allocate', Lang.bind(this, this._contentAllocate));
 
         this._iconBox = new Shell.Slicer({ name: 'appMenuIcon' });
@@ -86,9 +84,9 @@ AppMenuButton.prototype = {
         this._iconBox.set_child(icon);
         
         if(animation){
-			this.startAnimation(); 
-			this.stopAnimation();
-		}
+            this.startAnimation(); 
+            this.stopAnimation();
+        }
     },
 
     _onTitleChange: function() {
@@ -100,16 +98,15 @@ AppMenuButton.prototype = {
     //~ },
     
     doFocus: function() {
-    	let tracker = Shell.WindowTracker.get_default();
-		let focusedApp = tracker.focus_app;
+        let tracker = Shell.WindowTracker.get_default();
+        let focusedApp = tracker.focus_app;
 
         //if ( this.metaWindow.has_focus() ) {
-		if ( this.app == focusedApp ) {
-    	        this.actor.add_style_pseudo_class('active');
-        	}
-        	else {
-            	this.actor.remove_style_pseudo_class('active');
-        	}
+        if ( this.app == focusedApp ) {
+            this.actor.add_style_pseudo_class('active');
+        } else {
+            this.actor.remove_style_pseudo_class('active');
+        }
     },
     
     _onButtonPress: function(actor, event) {
@@ -373,67 +370,66 @@ WindowList.prototype = {
         }
     },
     
-    _allocateBoxes: function(container, box, flags) {	
-		let allocWidth = box.x2 - box.x1;
-		let allocHeight = box.y2 - box.y1;
-		let [leftMinWidth, leftNaturalWidth] = this._leftBox.get_preferred_width(-1);
-		let [centerMinWidth, centerNaturalWidth] = this._centerBox.get_preferred_width(-1);
-		let [rightMinWidth, rightNaturalWidth] = this._rightBox.get_preferred_width(-1);
+    _allocateBoxes: function(container, box, flags) {    
+        let allocWidth = box.x2 - box.x1;
+        let allocHeight = box.y2 - box.y1;
+        let [leftMinWidth, leftNaturalWidth] = this._leftBox.get_preferred_width(-1);
+        let [centerMinWidth, centerNaturalWidth] = this._centerBox.get_preferred_width(-1);
+        let [rightMinWidth, rightNaturalWidth] = this._rightBox.get_preferred_width(-1);
 
-		let sideWidth, centerWidth;
-		centerWidth = centerNaturalWidth;
-		sideWidth = (allocWidth - centerWidth) / 2;
+        let sideWidth, centerWidth;
+        centerWidth = centerNaturalWidth;
+        sideWidth = (allocWidth - centerWidth) / 2;
 
-		let childBox = new Clutter.ActorBox();
+        let childBox = new Clutter.ActorBox();
 
-		childBox.y1 = 0;
-		childBox.y2 = allocHeight;
-		if (this.actor.get_direction() == St.TextDirection.RTL) {
-			childBox.x1 = allocWidth - Math.min(allocWidth - rightNaturalWidth,
-												leftNaturalWidth);
-			childBox.x2 = allocWidth;
-		} else {
-			childBox.x1 = 0;
-			childBox.x2 = Math.min(allocWidth - rightNaturalWidth, leftNaturalWidth);
-		}
-		this._leftBox.allocate(childBox, flags);
+        childBox.y1 = 0;
+        childBox.y2 = allocHeight;
+        if (this.actor.get_direction() == St.TextDirection.RTL) {
+            childBox.x1 = allocWidth - Math.min(allocWidth - rightNaturalWidth,
+                                                leftNaturalWidth);
+            childBox.x2 = allocWidth;
+        } else {
+            childBox.x1 = 0;
+            childBox.x2 = Math.min(allocWidth - rightNaturalWidth, leftNaturalWidth);
+        }
+        this._leftBox.allocate(childBox, flags);
 
-		childBox.x1 = Math.ceil(sideWidth);
-		childBox.y1 = 0;
-		childBox.x2 = childBox.x1 + centerWidth;
-		childBox.y2 = allocHeight;
-		this._centerBox.allocate(childBox, flags);
+        childBox.x1 = Math.ceil(sideWidth);
+        childBox.y1 = 0;
+        childBox.x2 = childBox.x1 + centerWidth;
+        childBox.y2 = allocHeight;
+        this._centerBox.allocate(childBox, flags);
 
-		childBox.y1 = 0;
-		childBox.y2 = allocHeight;
-		if (this.actor.get_direction() == St.TextDirection.RTL) {
-			childBox.x1 = 0;
-			childBox.x2 = Math.min(Math.floor(sideWidth),
-								   rightNaturalWidth);
-		} else {
-			childBox.x1 = allocWidth - Math.min(Math.floor(sideWidth),
-												rightNaturalWidth);
-			childBox.x2 = allocWidth;
-		}
-		this._rightBox.allocate(childBox, flags);
+        childBox.y1 = 0;
+        childBox.y2 = allocHeight;
+        if (this.actor.get_direction() == St.TextDirection.RTL) {
+            childBox.x1 = 0;
+            childBox.x2 = Math.min(Math.floor(sideWidth),
+                                   rightNaturalWidth);
+        } else {
+            childBox.x1 = allocWidth - Math.min(Math.floor(sideWidth),
+                                                rightNaturalWidth);
+            childBox.x2 = allocWidth;
+        }
+        this._rightBox.allocate(childBox, flags);
     }
 };
 
 function main(extensionMeta) {
-	
-	/* Move Clock - http://www.fpmurphy.com/gnome-shell-extensions/moveclock.tar.gz */
-	let _children = Main.panel._rightBox.get_children();
+    /* Move Clock - http://www.fpmurphy.com/gnome-shell-extensions/moveclock.tar.gz */
+    let _children = Main.panel._rightBox.get_children();
     let _clock    = Main.panel._dateMenu;
     Main.panel._centerBox.remove_actor(_clock.actor);
     Main.panel._rightBox.insert_actor(_clock.actor, _children.length - 1);
-	//make the clock a little wider so the chaning time doesn't cause stuff to resize
-	_clock.actor.set_width( _clock.actor.get_width() + 5 );
+    //make the clock a little wider so the chaning time doesn't cause stuff to resize
+    _clock.actor.set_width( _clock.actor.get_width() + 5 );
     
     /* Remove Application Menu */
     _children= Main.panel._leftBox.get_children();
     Main.panel._leftBox.remove_actor(_children[1]);  
        
     /* Create a Window List */
-	let windowList = new WindowList();
+    let windowList = new WindowList();
     Main.panel._leftBox.add(windowList.actor);
 }
