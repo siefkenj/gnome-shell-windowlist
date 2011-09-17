@@ -20,12 +20,13 @@ const Panel = imports.ui.panel;
 const PANEL_ICON_SIZE = 24;
 const SPINNER_ANIMATION_TIME = 1;
 
+let windowList, restoreState={};
+
 function AppMenuButton(app, metaWindow, animation) {
     this._init(app, metaWindow, animation);
 }
 
 AppMenuButton.prototype = {
-
     _init: function(app, metaWindow, animation) {
 
         this.actor = new St.Bin({ style_class: 'panel-button',
@@ -35,7 +36,8 @@ AppMenuButton.prototype = {
                                   y_fill: false,
                                   track_hover: true });
         this.actor._delegate = this;
-        this.actor.connect('button-press-event', Lang.bind(this, this._onButtonPress));
+        //this.actor.connect('button-press-event', Lang.bind(this, this._onButtonPress));
+        this.actor.connect('button-release-event', Lang.bind(this, this._onButtonRelease));
         this.metaWindow = metaWindow;
         this.app = app;
         
@@ -51,10 +53,8 @@ AppMenuButton.prototype = {
         this._container.connect('allocate', Lang.bind(this, this._contentAllocate));
 
         this._iconBox = new Shell.Slicer({ name: 'appMenuIcon' });
-        this._iconBox.connect('style-changed',
-                              Lang.bind(this, this._onIconBoxStyleChanged));
-        this._iconBox.connect('notify::allocation',
-                              Lang.bind(this, this._updateIconBoxClip));
+        this._iconBox.connect('style-changed', Lang.bind(this, this._onIconBoxStyleChanged));
+        this._iconBox.connect('notify::allocation', Lang.bind(this, this._updateIconBoxClip));
         this._container.add_actor(this._iconBox);
         this._label = new Panel.TextShadower();
         this._container.add_actor(this._label.actor);
@@ -72,8 +72,7 @@ AppMenuButton.prototype = {
         }));
         //~ this.actor.connect('destroy', Lang.bind(this, this._onDestroy));
 
-        this._spinner = new Panel.AnimatedIcon('process-working.svg',
-                                         PANEL_ICON_SIZE);
+        this._spinner = new Panel.AnimatedIcon('process-working.svg', PANEL_ICON_SIZE);
         this._container.add_actor(this._spinner.actor);
         this._spinner.actor.lower_bottom();
         
@@ -116,6 +115,14 @@ AppMenuButton.prototype = {
         //~ else {
             this.metaWindow.activate(global.get_current_time());
         //~ }
+    },
+
+    _onButtonRelease: function(actor, event) {
+        if ( this.metaWindow.has_focus() ) {
+            this.metaWindow.minimize(global.get_current_time());
+        } else {
+            this.metaWindow.activate(global.get_current_time());
+        }
     },
 
     show: function() {
@@ -261,8 +268,7 @@ WindowList.prototype = {
         
         this._workspaces = [];
         this._changeWorkspaces();
-        global.screen.connect('notify::n-workspaces',
-                                Lang.bind(this, this._changeWorkspaces));
+        global.screen.connect('notify::n-workspaces', Lang.bind(this, this._changeWorkspaces));
                                 
         Main.panel._boxContainer.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
     },
@@ -363,10 +369,8 @@ WindowList.prototype = {
         for ( let i=0; i<global.screen.n_workspaces; ++i ) {
             let ws = global.screen.get_workspace_by_index(i);
             this._workspaces[i] = ws;
-            ws._windowAddedId = ws.connect('window-added',
-                                    Lang.bind(this, this._windowAdded));
-            ws._windowRemovedId = ws.connect('window-removed',
-                                    Lang.bind(this, this._windowRemoved));
+            ws._windowAddedId = ws.connect('window-added', Lang.bind(this, this._windowAdded));
+            ws._windowRemovedId = ws.connect('window-removed', Lang.bind(this, this._windowRemoved));
         }
     },
     
@@ -386,8 +390,7 @@ WindowList.prototype = {
         childBox.y1 = 0;
         childBox.y2 = allocHeight;
         if (this.actor.get_direction() == St.TextDirection.RTL) {
-            childBox.x1 = allocWidth - Math.min(allocWidth - rightNaturalWidth,
-                                                leftNaturalWidth);
+            childBox.x1 = allocWidth - Math.min(allocWidth - rightNaturalWidth, leftNaturalWidth);
             childBox.x2 = allocWidth;
         } else {
             childBox.x1 = 0;
@@ -405,31 +408,58 @@ WindowList.prototype = {
         childBox.y2 = allocHeight;
         if (this.actor.get_direction() == St.TextDirection.RTL) {
             childBox.x1 = 0;
-            childBox.x2 = Math.min(Math.floor(sideWidth),
-                                   rightNaturalWidth);
+            childBox.x2 = Math.min(Math.floor(sideWidth), rightNaturalWidth);
         } else {
-            childBox.x1 = allocWidth - Math.min(Math.floor(sideWidth),
-                                                rightNaturalWidth);
+            childBox.x1 = allocWidth - Math.min(Math.floor(sideWidth), rightNaturalWidth);
             childBox.x2 = allocWidth;
         }
         this._rightBox.allocate(childBox, flags);
     }
 };
 
-function main(extensionMeta) {
+function init() {
+    windowList = new WindowList();
+}
+
+function enable() {
     /* Move Clock - http://www.fpmurphy.com/gnome-shell-extensions/moveclock.tar.gz */
     let _children = Main.panel._rightBox.get_children();
     let _clock    = Main.panel._dateMenu;
-    Main.panel._centerBox.remove_actor(_clock.actor);
+    restoreState["_dateMenu"] = _clock.actor.get_parent();
+    restoreState["_dateMenu"].remove_actor(_clock.actor);
     Main.panel._rightBox.insert_actor(_clock.actor, _children.length - 1);
     //make the clock a little wider so the chaning time doesn't cause stuff to resize
     _clock.actor.set_width( _clock.actor.get_width() + 5 );
     
     /* Remove Application Menu */
-    _children= Main.panel._leftBox.get_children();
-    Main.panel._leftBox.remove_actor(_children[1]);  
+    _children = Main.panel._leftBox.get_children();
+    restoreState["applicationMenu"] = _children[1];
+    Main.panel._leftBox.remove_actor(restoreState["applicationMenu"]);  
        
-    /* Create a Window List */
-    let windowList = new WindowList();
+    /* Place the Window List */
     Main.panel._leftBox.add(windowList.actor);
+}
+
+function disable() {
+    /* Remove the Window List */
+    Main.panel._leftBox.remove_actor(windowList.actor);
+    
+    /* Restore Application Menu */
+    Main.panel._leftBox.add(restoreState["applicationMenu"]);  
+
+    /* unmove the clock */
+    let _clock = Main.panel._dateMenu;
+    let _clock_parent = _clock.actor.get_parent();
+    if (_clock_parent) {
+        _clock_parent.remove_actor(_clock.actor);
+    }
+    if (restoreState["_dateMenu"]) {
+        restoreState["_dateMenu"].add(_clock.actor, 0);
+    }
+
+}
+
+function main(extensionMeta) {
+    init();
+    enable();
 }
