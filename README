@@ -3,3 +3,7 @@ of gnome-shell.
 
 install:
 	cp -r windowlist@o2net.cl ~/.local/share/gnome-shell/extensions/
+
+website:
+	Original code can be found at http://www.o2net.cl/gnome/windowlist.html
+	gnome-look address http://gnome-look.org/content/show.php/Window+List+Extension?content=143631
