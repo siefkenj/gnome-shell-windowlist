@@ -1,0 +1,5 @@
+gnome-shell-windowlist adds a window switcher to the top bar
+of gnome-shell.
+
+install:
+	cp -r windowlist@o2net.cl ~/.local/share/gnome-shell/extensions/
