@@ -118,6 +118,9 @@ AppMenuButton.prototype = {
     },
 
     _onButtonRelease: function(actor, event) {
+        if ( !(Shell.get_event_state(event) & Clutter.ModifierType.BUTTON1_MASK) ) {
+            return;
+        }
         if ( this.metaWindow.has_focus() ) {
             this.metaWindow.minimize(global.get_current_time());
         } else {
@@ -260,8 +263,7 @@ WindowList.prototype = {
         let tracker = Shell.WindowTracker.get_default();
         tracker.connect('notify::focus-app', Lang.bind(this, this._onFocus));
 
-        global.window_manager.connect('switch-workspace',
-                                        Lang.bind(this, this._refreshItems));
+        global.window_manager.connect('switch-workspace', Lang.bind(this, this._refreshItems));
         //~ global.window_manager.connect('minimize',
                                         //~ Lang.bind(this, this._onMinimize));
         //~ global.window_manager.connect('map', Lang.bind(this, this._onMap));
