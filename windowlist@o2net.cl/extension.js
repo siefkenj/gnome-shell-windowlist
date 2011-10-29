@@ -158,7 +158,7 @@ AppMenuButton.prototype = {
 
         // Set up the right click menu
         //not working yet
-        //this.rightClickMenu = new AppMenuButtonRightClickMenu(this.actor, this.app, this.metaWindow);
+        this.rightClickMenu = new AppMenuButtonRightClickMenu(this.actor, this.app, this.metaWindow);
     },
 
     _onTitleChange: function() {
