@@ -38,9 +38,10 @@ AppMenuButtonRightClickMenu.prototype = {
     _init: function(actor, app, metaWindow) {
         //take care of menu initialization
         PopupMenu.PopupMenu.prototype._init.call(this, actor, 0.0, St.Side.TOP, 0);
-        //Main.uiGroup.add_actor(this.actor);
-        Main.chrome.addActor(this.actor, { visibleInOverview: true,
-                                           affectsStruts: false });
+        Main.uiGroup.add_actor(this.actor);
+        //gnome 3.0 stuff
+        //Main.chrome.addActor(this.actor, { visibleInOverview: true,
+        //                                   affectsStruts: false });
         this.actor.hide();
         actor.connect('key-press-event', Lang.bind(this, this._onSourceKeyPress));
 
@@ -155,8 +156,9 @@ AppMenuButton.prototype = {
             this.stopAnimation();
         }
 
-        //set up the right click menu
-        this.rightClickMenu = new AppMenuButtonRightClickMenu(this.actor, this.app, this.metaWindow);
+        // Set up the right click menu
+        //not working yet
+        //this.rightClickMenu = new AppMenuButtonRightClickMenu(this.actor, this.app, this.metaWindow);
     },
 
     _onTitleChange: function() {
@@ -203,12 +205,14 @@ AppMenuButton.prototype = {
                 // Setting the max-height won't do any good if the minimum height of the
                 // menu is higher then the screen; it's useful if part of the menu is
                 // scrollable so the minimum height is smaller than the natural height
-                let monitor = global.get_primary_monitor();
-                this.rightClickMenu.actor.style = ('max-height: ' +
-                                         Math.round(monitor.height - Main.panel.actor.height) +
-                                         'px;');
+                //let monitor = global.get_primary_monitor();
+//                let monitor = Main.layoutManager.monitors[0];
+//                this.rightClickMenu.actor.style = ('max-height: ' +
+//                                         Math.round(monitor.height - Main.panel.actor.height) +
+//                                         'px;');
             }
             this.rightClickMenu.toggle();
+   
         }
     },
 
@@ -356,7 +360,8 @@ WindowList.prototype = {
         this._changeWorkspaces();
         global.screen.connect('notify::n-workspaces', Lang.bind(this, this._changeWorkspaces));
                                 
-        Main.panel._boxContainer.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
+        //Main.panel._boxContainer.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
+        Main.panel.actor.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
     },
 
     _onFocus: function() {
