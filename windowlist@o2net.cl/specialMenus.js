@@ -182,36 +182,14 @@ AppThumbnailHoverMenu.prototype = {
 
         this.metaWindow = metaWindow;
         this.app = app;
+
+        this.appSwitcherItem = new PopupMenuAppSwitcherItem(this.metaWindow, this.app);
+        this.addMenuItem(this.appSwitcherItem);
     },
 
     open: function(animate) {
-        this.generateThumbnail();
+        this.appSwitcherItem._refresh();
         PopupMenu.PopupMenu.prototype.open.call(this, animate);
-    },
-    
-    generateThumbnail: function() {
-        // If we already made a thumbnail, we don't need to make it again
-        if (this.thumbnail) {
-            return;
-        }
-
-        // Get a pretty thumbnail of our app
-        let mutterWindow = this.metaWindow.get_compositor_private();
-        if (mutterWindow) {
-            let windowTexture = mutterWindow.get_texture();
-            let [width, height] = windowTexture.get_size();
-            let scale = Math.min(1.0, THUMBNAIL_DEFAULT_SIZE / width, THUMBNAIL_DEFAULT_SIZE / height);
-            this.thumbnail = new Clutter.Clone ({ source: windowTexture,
-                                                  reactive: true,
-                                                  width: width * scale,
-                                                  height: height * scale });
-
-            this.thumnailMenuItem = new PopupMenuThumbnailItem(this.thumbnail);
-            this.addMenuItem(this.thumnailMenuItem);
-            this.thumnailMenuItem.connect('activate', Lang.bind(this, function() {
-                this.metaWindow.activate(global.get_current_time());
-            }));
-        }
     }
 }
 
@@ -302,5 +280,164 @@ PopupMenuThumbnailItem.prototype = {
 
         this.image = image;
         this.addActor(this.image);
+    }
+};
+
+// display a list of app thumbnails and allow
+// bringing any app to focus by clicking on its thumbnail
+function PopupMenuAppSwitcherItem() {
+    this._init.apply(this, arguments);
+}
+
+PopupMenuAppSwitcherItem.prototype = {
+    __proto__: PopupMenu.PopupBaseMenuItem.prototype,
+
+    _init: function (metaWindow, app, params) {
+        params = Params.parse(params, { hover: false });
+        PopupMenu.PopupBaseMenuItem.prototype._init.call(this, params);
+        
+        this.metaWindow = metaWindow;
+        this.app = app;
+        
+        this.appContainer = new St.BoxLayout({ style_class: 'app-window-switcher',
+                                               reactive: true,
+                                               track_hover: true,
+                                               can_focus: true,
+                                               vertical: false });
+
+        this.metaWindowThumbnail = new WindowThumbnail(this.metaWindow, this.app);
+        this._connectToWindowOpen(this.metaWindowThumbnail.actor, this.metaWindow);
+        this.appContainer.add_actor(this.metaWindowThumbnail.actor);
+        this.appThumbnails = {};
+
+        this.divider = new St.Bin({ style_class: 'app-window-switcher-divider',
+                                   y_fill: true });
+        this.appContainer.add_actor(this.divider);
+
+        this.addActor(this.appContainer);
+    },
+
+    _connectToWindowOpen: function(actor, metaWindow) {
+        actor.connect('button-release-event', Lang.bind(this, function() {
+            metaWindow.activate(global.get_current_time());
+        }));
+    },
+
+    _refresh: function() {
+        this.metaWindowThumbnail._refresh();
+
+        // Get a list of all windows of our app that are running in the current workspace
+        let windows = this.app.get_windows().filter(Lang.bind(this, function(win) { 
+                                                            let isDifferent =  (win != this.metaWindow);
+                                                            let isSameWorkspace = (win.get_workspace() == this.metaWindow.get_workspace());
+                                                            return isDifferent && isSameWorkspace;
+                                                    }));
+        // Update appThumbnails to include new programs
+        windows.forEach(Lang.bind(this, function(metaWindow) {
+            if (this.appThumbnails[metaWindow]) {
+                this.appThumbnails[metaWindow].thumbnail._refresh();
+            } else {
+                let thumbnail = new WindowThumbnail(metaWindow, this.app);
+                this.appThumbnails[metaWindow] = { metaWindow: metaWindow,
+                                                   thumbnail: thumbnail };
+                this.appContainer.add_actor(this.appThumbnails[metaWindow].thumbnail.actor);
+                this._connectToWindowOpen(this.appThumbnails[metaWindow].thumbnail.actor, metaWindow);
+            }
+        }));
+        
+        // Update appThumbnails to remove old programs
+        for (let win in this.appThumbnails) {
+            if (windows.indexOf(this.appThumbnails[win].metaWindow) == -1) {
+                this.appContainer.remove_actor(this.appThumbnails[win].thumbnail.actor);
+                this.appThumbnails[win].thumbnail.destroy();
+                delete this.appThumbnails[win];
+            }
+        }
+
+        // Show the divider if there is more than one window belonging to this app
+        if (Object.keys(this.appThumbnails).length > 0) {
+            this.divider.show();
+        } else {
+            this.divider.hide();
+        }
+    }
+};
+
+function WindowThumbnail() {
+    this._init.apply(this, arguments);
+}
+
+WindowThumbnail.prototype = {
+    _init: function (metaWindow, app, params) {
+        this.metaWindow = metaWindow
+        this.app = app
+
+        // Inherit the theme from the alt-tab menu
+        this.actor = new St.BoxLayout({ style_class: 'window-thumbnail',
+                                        reactive: true,
+                                        can_focus: true,
+                                        vertical: true });
+        this.thumbnailActor = new St.Bin({ y_fill: false,
+                                           y_align: St.Align.MIDDLE });
+        this.thumbnailActor.height = THUMBNAIL_DEFAULT_SIZE;
+        this.titleActor = new St.Label();
+        //TODO: should probably do this in a smarter way in the get_size_request event or something...
+        //fixing this should also allow the text to be centered
+        this.titleActor.width = THUMBNAIL_DEFAULT_SIZE;
+
+        this.actor.add(this.thumbnailActor);
+        this.actor.add(this.titleActor);
+        this._refresh();
+
+        // the thumbnail actor will automatically reflect changes in the window
+        // (since it is a clone), but we need to update the title when it changes
+        this.metaWindow.connect('notify::title', Lang.bind(this, function(){
+                                                    this.titleActor.text = this.metaWindow.get_title();
+                                }));
+        this.actor.connect('enter-event', Lang.bind(this, function() {
+                                                        this.actor.add_style_pseudo_class('hover');
+                                                        this.actor.add_style_pseudo_class('selected');
+                                                    }));
+        this.actor.connect('leave-event', Lang.bind(this, function() {
+                                                        this.actor.remove_style_pseudo_class('hover');
+                                                        this.actor.remove_style_pseudo_class('selected');
+                                                    }));
+    },
+
+    destroy: function() {
+        this.actor.destroy();
+    },
+
+    needs_refresh: function() {
+        return Boolean(this.thumbnail);
+    },
+
+    _getThumbnail: function() {
+        // Create our own thumbnail if it doesn't exist
+        if (this.thumbnail) {
+            return this.thumbnail;
+        }
+
+        let thumbnail = null;
+        let mutterWindow = this.metaWindow.get_compositor_private();
+        if (mutterWindow) {
+            let windowTexture = mutterWindow.get_texture();
+            let [width, height] = windowTexture.get_size();
+            let scale = Math.min(1.0, THUMBNAIL_DEFAULT_SIZE / width, THUMBNAIL_DEFAULT_SIZE / height);
+            thumbnail = new Clutter.Clone ({ source: windowTexture,
+                                                  reactive: true,
+                                                  width: width * scale,
+                                                  height: height * scale });
+        }
+
+        return thumbnail;
+    },
+
+    _refresh: function() {
+        // Replace the old thumbnail
+        this.thumbnail = this._getThumbnail();
+        
+        this.thumbnailActor.child = this.thumbnail;
+        this.titleActor.text = this.metaWindow.get_title();
     }
 };

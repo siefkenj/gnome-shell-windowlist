@@ -289,6 +289,7 @@ WindowList.prototype = {
                                 
         //Main.panel._boxContainer.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
         Main.panel.actor.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
+
     },
 
     _onFocus: function() {
