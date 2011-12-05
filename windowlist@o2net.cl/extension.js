@@ -1,9 +1,10 @@
 //vim: expandtab shiftwidth=4 tabstop=8 softtabstop=4 encoding=utf-8 textwidth=99
 /* -*- mode: js2; js2-basic-offset: 4; indent-tabs-mode: nil -*- */
 
-// Gnome Shell Window List v0.1
-// for GNOME Shell 3.0.2
-// Kurt Rottmann <kurtrottmann@gmail.com>
+// Gnome Shell Window List
+// Authors:
+//   Kurt Rottmann <kurtrottmann@gmail.com>
+//   Jason Siefken
 
 // Taking code from
 // Copyright (C) 2011 R M Yorston
@@ -279,15 +280,11 @@ WindowList.prototype = {
         tracker.connect('notify::focus-app', Lang.bind(this, this._onFocus));
 
         global.window_manager.connect('switch-workspace', Lang.bind(this, this._refreshItems));
-        //~ global.window_manager.connect('minimize',
-                                        //~ Lang.bind(this, this._onMinimize));
-        //~ global.window_manager.connect('map', Lang.bind(this, this._onMap));
         
         this._workspaces = [];
         this._changeWorkspaces();
         global.screen.connect('notify::n-workspaces', Lang.bind(this, this._changeWorkspaces));
                                 
-        //Main.panel._boxContainer.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
         Main.panel.actor.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
 
     },
@@ -433,8 +430,7 @@ function enable() {
     _clock.actor.set_width( _clock.actor.get_width() + 5 );
     
     /* Remove Application Menu */
-    _children = Main.panel._leftBox.get_children();
-    restoreState["applicationMenu"] = _children[1];
+    restoreState["applicationMenu"] = Main.panel._appMenu.actor;
     Main.panel._leftBox.remove_actor(restoreState["applicationMenu"]);  
        
     /* Place the Window List */

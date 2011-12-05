@@ -425,9 +425,9 @@ WindowThumbnail.prototype = {
             let [width, height] = windowTexture.get_size();
             let scale = Math.min(1.0, THUMBNAIL_DEFAULT_SIZE / width, THUMBNAIL_DEFAULT_SIZE / height);
             thumbnail = new Clutter.Clone ({ source: windowTexture,
-                                                  reactive: true,
-                                                  width: width * scale,
-                                                  height: height * scale });
+                                             reactive: true,
+                                             width: width * scale,
+                                             height: height * scale });
         }
 
         return thumbnail;

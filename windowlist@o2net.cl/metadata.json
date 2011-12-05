@@ -1,7 +1,7 @@
 {
-"shell-version": ["3.0.2", "3.2.1"],
+"shell-version": ["3.2"],
 "uuid": "windowlist@o2net.cl",
 "name": "Window List",
-"description": "Add a window list to panel",
-"url": "http://www.o2net.cl/gnome/windowlist.html"
+"description": "Add a window list to the top panel",
+"url": "https://github.com/siefkenj/gnome-shell-windowlist"
 }
