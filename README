@@ -5,5 +5,8 @@ install:
 	cp -r windowlist@o2net.cl ~/.local/share/gnome-shell/extensions/
 
 website:
+	https://github.com/siefkenj/gnome-shell-windowlist
+	https://extensions.gnome.org/extension/25/window-list/
+
 	Original code can be found at http://www.o2net.cl/gnome/windowlist.html
 	gnome-look address http://gnome-look.org/content/show.php/Window+List+Extension?content=143631
