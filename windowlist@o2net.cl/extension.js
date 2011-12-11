@@ -41,7 +41,7 @@ const dir = function(obj){
     return props;
 }
 
-let windowList, restoreState={};
+let windowList, restoreState={}, clockWrapper;
 
 
 function AppMenuButton(app, metaWindow, animation) {
@@ -61,7 +61,7 @@ AppMenuButton.prototype = {
         this.actor.connect('button-release-event', Lang.bind(this, this._onButtonRelease));
         this.metaWindow = metaWindow;
         this.app = app;
-        
+
         this.metaWindow.connect('notify::title', Lang.bind(this, this._onTitleChange));
 
         let bin = new St.Bin({ name: 'appMenu' });
@@ -95,13 +95,13 @@ AppMenuButton.prototype = {
         this._spinner = new Panel.AnimatedIcon('process-working.svg', PANEL_ICON_SIZE);
         this._container.add_actor(this._spinner.actor);
         this._spinner.actor.lower_bottom();
-        
+
         let icon = this.app.get_faded_icon(2 * PANEL_ICON_SIZE);
         //this._label.setText(this.app.get_name());
         //this._label.setText(this.metaWindow.get_title());
         this._onTitleChange();
         this._iconBox.set_child(icon);
-        
+
         if(animation){
             this.startAnimation(); 
             this.stopAnimation();
@@ -119,7 +119,7 @@ AppMenuButton.prototype = {
     _onTitleChange: function() {
         this._label.setText(this.metaWindow.get_title());
     },
-    
+
     doFocus: function() {
         //let tracker = Shell.WindowTracker.get_default();
         //let focusedApp = tracker.focus_app;
@@ -130,7 +130,7 @@ AppMenuButton.prototype = {
             this.actor.remove_style_pseudo_class('active');
         }
     },
-    
+
     _onButtonRelease: function(actor, event) {
         if ( Shell.get_event_state(event) & Clutter.ModifierType.BUTTON1_MASK ) {
             if ( this.rightClickMenu.isOpen ) {
@@ -280,11 +280,11 @@ WindowList.prototype = {
         tracker.connect('notify::focus-app', Lang.bind(this, this._onFocus));
 
         global.window_manager.connect('switch-workspace', Lang.bind(this, this._refreshItems));
-        
+
         this._workspaces = [];
         this._changeWorkspaces();
         global.screen.connect('notify::n-workspaces', Lang.bind(this, this._changeWorkspaces));
-                                
+
         Main.panel.actor.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
 
     },
@@ -355,7 +355,7 @@ WindowList.prototype = {
             }
         }
     },
-    
+
     _changeWorkspaces: function() {
         for ( let i=0; i<this._workspaces.length; ++i ) {
             let ws = this._workspaces[i];
@@ -371,7 +371,7 @@ WindowList.prototype = {
             ws._windowRemovedId = ws.connect('window-removed', Lang.bind(this, this._windowRemoved));
         }
     },
-    
+
     _allocateBoxes: function(container, box, flags) {    
         let allocWidth = box.x2 - box.x1;
         let allocHeight = box.y2 - box.y1;
@@ -415,6 +415,71 @@ WindowList.prototype = {
     }
 };
 
+// A widget that won't get squished
+// and won't continually resize when the text inside
+// it changes, provided the number of characters inside
+// doesn't change
+function StableLabel(dateMenu) {
+    this._init.call(this, dateMenu);
+}
+
+StableLabel.prototype = {
+    _init: function(dateMenu) {
+        this.actor = new Shell.GenericContainer({ visible: true,
+                                                  reactive: true });
+        this.actor.connect('get-preferred-width', Lang.bind(this, this._getPreferredWidth));
+        this.actor.connect('get-preferred-height', Lang.bind(this, this._getPreferredHeight));
+        this.actor.connect('allocate', Lang.bind(this, this._allocate));
+
+        this._dateMenu = dateMenu.actor;
+        this.label = dateMenu._clock;
+
+        // We keep track of the current maximum width
+        // needed to display the label.  As long as the number
+        // of character is the label doesn't change, our width
+        // should be monotone increasing
+        this.width = 0;
+        this.numChars = 0;
+
+        this.actor.add_actor(this._dateMenu);
+    },
+
+    destroy: function() {
+        this.actor.destroy();
+        this._dateMenu = null;
+        this.label = null;
+    },
+
+    _getPreferredWidth: function(actor, forWidth, alloc) {
+        let [minWidth, preferredWidth] = this._dateMenu.get_preferred_width(forWidth);
+
+        this.width = Math.max(this.width, preferredWidth);
+        if (this.label.text.length != this.numChars) {
+            this.numChars = this.label.text.length;
+            this.width = preferredWidth;
+        }
+
+        alloc.min_size = this.width;
+        alloc.natural_size = this.width;
+    },
+
+    _getPreferredHeight: function(actor, forHeight, alloc) {
+        let [minHeight, preferredHeight] = this._dateMenu.get_preferred_width(forHeight);
+        alloc.min_size = minHeight;
+        alloc.natural_size = preferredHeight;
+    },
+
+    _allocate: function(actor, box, flags) {
+        let childBox = new Clutter.ActorBox();
+
+        childBox.x1 = 0;
+        childBox.y1 = 0;
+        childBox.x2 = this.actor.width;
+        childBox.y2 = this.actor.height;
+        this._dateMenu.allocate(childBox, flags);
+    }
+};
+
 function init() {
     windowList = new WindowList();
 }
@@ -425,14 +490,15 @@ function enable() {
     let _clock    = Main.panel._dateMenu;
     restoreState["_dateMenu"] = _clock.actor.get_parent();
     restoreState["_dateMenu"].remove_actor(_clock.actor);
-    Main.panel._rightBox.insert_actor(_clock.actor, _children.length - 1);
-    //make the clock a little wider so the chaning time doesn't cause stuff to resize
-    _clock.actor.set_width( _clock.actor.get_width() + 5 );
-    
+    // Add a wrapper around the clock so it won't get squished (ellipsized)
+    // and so that it doesn't resize when the time chagnes
+    clockWrapper = new StableLabel(_clock);
+    Main.panel._rightBox.insert_actor(clockWrapper.actor, _children.length - 1);
+
     /* Remove Application Menu */
     restoreState["applicationMenu"] = Main.panel._appMenu.actor;
     Main.panel._leftBox.remove_actor(restoreState["applicationMenu"]);  
-       
+
     /* Place the Window List */
     Main.panel._leftBox.add(windowList.actor);
 }
@@ -440,7 +506,7 @@ function enable() {
 function disable() {
     /* Remove the Window List */
     Main.panel._leftBox.remove_actor(windowList.actor);
-    
+
     /* Restore Application Menu */
     Main.panel._leftBox.add(restoreState["applicationMenu"]);  
 
@@ -452,11 +518,6 @@ function disable() {
     }
     if (restoreState["_dateMenu"]) {
         restoreState["_dateMenu"].add(_clock.actor, 0);
+        clockWrapper.destroy();
     }
-
-}
-
-function main(extensionMeta) {
-    init();
-    enable();
 }
