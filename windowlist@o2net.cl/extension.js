@@ -34,6 +34,11 @@ const HOVER_MENU_DELAY = 1; // seconds
 const Extension = imports.ui.extensionSystem.extensions['windowlist@o2net.cl'];
 const SpecialMenus = Extension.specialMenus;
 
+const OPTIONS = {
+                    DISPLAY_TITLE: 'TITLE', // TITLE: display the app title next to each icon, APP: display the app name next to each icon, NONE: display no text next to each icon
+                    GROUP_BY_APP: false // true: only one button is shown for each application (all windows are grouped), false: every window has its own button
+                };
+
 
 const dir = function(obj){
     let props = [a for (a in obj)];
@@ -41,16 +46,25 @@ const dir = function(obj){
     return props;
 }
 
+// Globally variables needed for disabling the extension
 let windowList, restoreState={}, clockWrapper;
 
 
-function AppMenuButton(app, metaWindow, animation) {
-    this._init(app, metaWindow, animation);
+
+// AppMenuButton is a button that will raise and lower the metaWindow associated
+// with app
+// @app: the application
+// @metaWindow: the program's window
+// @animation: whether to show a spinner
+// @type: 'WINDOW' for a single-window button and 'APP' for an app-based button
+function AppMenuButton(app, metaWindow, animation, type) {
+    this._init(app, metaWindow, animation, type);
 }
 
 AppMenuButton.prototype = {
-    _init: function(app, metaWindow, animation) {
+    _init: function(app, metaWindow, animation, type) {
 
+        this.type = type || 'WINDOW';
         this.actor = new St.Bin({ style_class: 'panel-button',
                                   reactive: true,
                                   can_focus: true,
@@ -62,26 +76,28 @@ AppMenuButton.prototype = {
         this.metaWindow = metaWindow;
         this.app = app;
 
-        this.metaWindow.connect('notify::title', Lang.bind(this, this._onTitleChange));
+        this._notify_title_signal = this.metaWindow.connect('notify::title', Lang.bind(this, this._onTitleChange));
 
-        let bin = new St.Bin({ name: 'appMenu' });
-        this.actor.set_child(bin);
-
-        this._container = new Shell.GenericContainer();
-        bin.set_child(this._container);
+        // We do a fancy layout with icons and labels, so we'd like to do our own allocation
+        // in a Shell.GenericContainer
+        this._container = new Shell.GenericContainer({ name: 'appMenu' });
         this._container.connect('get-preferred-width', Lang.bind(this, this._getContentPreferredWidth));
         this._container.connect('get-preferred-height', Lang.bind(this, this._getContentPreferredHeight));
         this._container.connect('allocate', Lang.bind(this, this._contentAllocate));
+        this.actor.set_child(this._container)
 
         this._iconBox = new Shell.Slicer({ name: 'appMenuIcon' });
         this._iconBox.connect('style-changed', Lang.bind(this, this._onIconBoxStyleChanged));
         this._iconBox.connect('notify::allocation', Lang.bind(this, this._updateIconBoxClip));
+        let icon = this.app.get_faded_icon(2 * PANEL_ICON_SIZE);
+        this._iconBox.set_child(icon);
         this._container.add_actor(this._iconBox);
         this._label = new Panel.TextShadower();
         this._container.add_actor(this._label.actor);
 
         this._iconBottomClip = 0;
 
+        // TODO: Should this be moved to handle all the buttons at once?
         this._visible = !Main.overview.visible;
         if (!this._visible)
             this.actor.hide();
@@ -96,38 +112,81 @@ AppMenuButton.prototype = {
         this._container.add_actor(this._spinner.actor);
         this._spinner.actor.lower_bottom();
 
-        let icon = this.app.get_faded_icon(2 * PANEL_ICON_SIZE);
-        //this._label.setText(this.app.get_name());
-        //this._label.setText(this.metaWindow.get_title());
-        this._onTitleChange();
-        this._iconBox.set_child(icon);
-
-        if(animation){
-            this.startAnimation(); 
-            this.stopAnimation();
-        }
 
         // Set up the right click menu
         this.rightClickMenu = new SpecialMenus.RightClickAppPopupMenu(this.actor, this.metaWindow, this.app);
         this.menuManager = new PopupMenu.PopupMenuManager({actor: this.actor});
         this.menuManager.addMenu(this.rightClickMenu);
-        this.hovCont = new Extension.specialMenus.HoverMenuController(this.actor, 
-                                    new Extension.specialMenus.AppThumbnailHoverMenu(this.actor, this.metaWindow, this.app));
+        // Set up the hover menu
+        this.hoverMenu = new Extension.specialMenus.AppThumbnailHoverMenu(this.actor, this.metaWindow, this.app)
+        this.hoverController = new Extension.specialMenus.HoverMenuController(this.actor, this.hoverMenu);
 
+        // Initialize the title
+        this._onTitleChange();
+
+        if(animation){
+            this.startAnimation();
+            this.stopAnimation();
+        }
+    },
+
+    // Call this whenever OPTIONS changes so that all the appropriate
+    // settings will be updated
+    refreshOptions: function() {
+        this._onTitleChange();
+    },
+
+    // changeMetaWindow changes this.metaWindow to @metaWindow
+    // and connects all the appropriate signals.  This is mainly used
+    // if this.type == 'APP'
+    changeMetaWindow: function(metaWindow) {
+        this.metaWindow.disconnect(this._notify_title_signal);
+        this.metaWindow = metaWindow;
+        this._notify_title_signal = this.metaWindow.connect('notify::title', Lang.bind(this, this._onTitleChange));
+        this.hoverMenu.changeMetaWindow(this.metaWindow);
+        this._onTitleChange();
     },
 
     _onTitleChange: function() {
-        this._label.setText(this.metaWindow.get_title());
+        let [title, appName] = [this.metaWindow.get_title(), this.app.get_name()];
+        switch(OPTIONS['DISPLAY_TITLE']) {
+            case 'TITLE':
+                // Some apps take a long time to set a valid title.  We don't want to error
+                // if title is null
+                if (title) {
+                    this._label.setText(title);
+                    break;
+                }
+            case 'APP':
+                if (appName) {
+                    this._label.setText(appName);
+                    break;
+                }
+            case 'NONE':
+            default:
+                this._label.setText('');
+        }
     },
 
     doFocus: function() {
-        //let tracker = Shell.WindowTracker.get_default();
-        //let focusedApp = tracker.focus_app;
-
-        if ( this.metaWindow.has_focus() ) {
-            this.actor.add_style_pseudo_class('active');
-        } else {
-            this.actor.remove_style_pseudo_class('active');
+        switch (this.type) {
+            case 'WINDOW':
+                if ( this.metaWindow.has_focus() ) {
+                    this.actor.add_style_pseudo_class('active');
+                } else {
+                    this.actor.remove_style_pseudo_class('active');
+                }
+                break;
+            case 'APP':
+                let tracker = Shell.WindowTracker.get_default();
+                let focusedApp = tracker.focus_app;
+                this.changeMetaWindow(global.display.focus_window);
+                if (this.app == focusedApp){
+                    this.actor.add_style_pseudo_class('active');
+                } else {
+                    this.actor.remove_style_pseudo_class('active');
+                }
+                break;
         }
     },
 
@@ -192,54 +251,49 @@ AppMenuButton.prototype = {
     },
 
     _getContentPreferredWidth: function(actor, forHeight, alloc) {
-        let [minSize, naturalSize] = this._iconBox.get_preferred_width(forHeight);
-        alloc.min_size = minSize;
-        alloc.natural_size = naturalSize;
-        [minSize, naturalSize] = this._label.actor.get_preferred_width(forHeight);
-        alloc.min_size = alloc.min_size + Math.max(0, minSize - Math.floor(alloc.min_size / 2));
-        alloc.natural_size = alloc.natural_size + Math.max(0, naturalSize - Math.floor(alloc.natural_size / 2));
+        let [iconMinSize, iconNaturalSize] = this._iconBox.get_preferred_width(forHeight);
+        let [labelMinSize, labelNaturalSize] = this._label.actor.get_preferred_width(forHeight);
+        // The label text is starts in the center of the icon, so we should allocate the space
+        // needed for the icon plus the space needed for(label - icon/2)
+        alloc.min_size = iconMinSize + Math.max(0, labelMinSize - Math.floor(iconMinSize / 2));
+        alloc.natural_size = iconNaturalSize + Math.max(0, labelNaturalSize - Math.floor(iconNaturalSize / 2));
     },
 
     _getContentPreferredHeight: function(actor, forWidth, alloc) {
-        let [minSize, naturalSize] = this._iconBox.get_preferred_height(forWidth);
-        alloc.min_size = minSize;
-        alloc.natural_size = naturalSize;
-        [minSize, naturalSize] = this._label.actor.get_preferred_height(forWidth);
-        if (minSize > alloc.min_size)
-            alloc.min_size = minSize;
-        if (naturalSize > alloc.natural_size)
-            alloc.natural_size = naturalSize;
+        let [iconMinSize, iconNaturalSize] = this._iconBox.get_preferred_height(forWidth);
+        let [labelMinSize, labelNaturalSize] = this._label.actor.get_preferred_height(forWidth);
+        alloc.min_size = Math.max(iconMinSize, labelMinSize);
+        alloc.natural_size = Math.max(iconNaturalSize, labelMinSize);
     },
 
     _contentAllocate: function(actor, box, flags) {
+        // returns [x1,x2] so that the area between x1 and x2 is
+        // centered in length
+        function center(length, naturalLength) {
+            let maxLength = Math.min(length, naturalLength);
+            let x1 = Math.max(0, Math.floor((length - maxLength) / 2));
+            let x2 = Math.min(length, x1 + maxLength);
+            return [x1, x2];
+        }
         let allocWidth = box.x2 - box.x1;
         let allocHeight = box.y2 - box.y1;
         let childBox = new Clutter.ActorBox();
-
-        let [minWidth, minHeight, naturalWidth, naturalHeight] = this._iconBox.get_preferred_size();
-
         let direction = this.actor.get_direction();
 
-        let yPadding = Math.floor(Math.max(0, allocHeight - naturalHeight) / 2);
-        childBox.y1 = yPadding;
-        childBox.y2 = childBox.y1 + Math.min(naturalHeight, allocHeight);
+        // Set the icon to be left-justified (or right-justified) and centered vertically
+        let [iconMinWidth, iconMinHeight, iconNaturalWidth, iconNaturalHeight] = this._iconBox.get_preferred_size();
+        [childBox.y1, childBox.y2] = center(allocHeight, iconNaturalHeight);
         if (direction == St.TextDirection.LTR) {
-            childBox.x1 = 0;
-            childBox.x2 = childBox.x1 + Math.min(naturalWidth, allocWidth);
+            [childBox.x1, childBox.x2] = [0, Math.min(iconNaturalWidth, allocWidth)];
         } else {
-            childBox.x1 = Math.max(0, allocWidth - naturalWidth);
-            childBox.x2 = allocWidth;
+            [childBox.x1, childBox.x2] = [Math.max(0, allocWidth - iconNaturalWidth), allocWidth];
         }
         this._iconBox.allocate(childBox, flags);
 
+        // Set the label to start its text in the center of the icon
         let iconWidth = childBox.x2 - childBox.x1;
-
         [minWidth, minHeight, naturalWidth, naturalHeight] = this._label.actor.get_preferred_size();
-
-        yPadding = Math.floor(Math.max(0, allocHeight - naturalHeight) / 2);
-        childBox.y1 = yPadding;
-        childBox.y2 = childBox.y1 + Math.min(naturalHeight, allocHeight);
-
+        [childBox.y1, childBox.y2] = center(allocHeight, naturalHeight);
         if (direction == St.TextDirection.LTR) {
             childBox.x1 = Math.floor(iconWidth / 2);
             childBox.x2 = Math.min(childBox.x1 + naturalWidth, allocWidth);
@@ -249,6 +303,7 @@ AppMenuButton.prototype = {
         }
         this._label.actor.allocate(childBox, flags);
 
+        // Set the spinner to start in the center of the icon
         if (direction == St.TextDirection.LTR) {
             childBox.x1 = Math.floor(iconWidth / 2) + this._label.actor.width;
             childBox.x2 = childBox.x1 + this._spinner.actor.width;
@@ -265,6 +320,7 @@ AppMenuButton.prototype = {
     }
 };
 
+// WindowList contains a list of AppMenuButton's
 function WindowList() {
     this._init();
 }
@@ -282,15 +338,19 @@ WindowList.prototype = {
         global.window_manager.connect('switch-workspace', Lang.bind(this, this._refreshItems));
 
         this._workspaces = [];
-        this._changeWorkspaces();
-        global.screen.connect('notify::n-workspaces', Lang.bind(this, this._changeWorkspaces));
+        this._recreateWorkspaces();
+        this._refreshItems();
+        global.screen.connect('notify::n-workspaces', Lang.bind(this, this._recreateWorkspaces));
 
         Main.panel.actor.connect('allocate', Lang.bind(Main.panel, this._allocateBoxes));
+    },
 
+    refreshOptions: function() {
+        this._refreshItems();
     },
 
     _onFocus: function() {
-        for ( let i = 0; i < this._windows.length; ++i ) {
+        for (let i = 0; i < this._windows.length; ++i) {
             this._windows[i].doFocus();
         }
     },
@@ -310,11 +370,7 @@ WindowList.prototype = {
         for ( let i = 0; i < windows.length; ++i ) {
             let metaWindow = windows[i];
             if ( metaWindow && tracker.is_window_interesting(metaWindow) ) {
-                let app = tracker.get_window_app(metaWindow);
-                if ( app ) {
-                    this._windows[i] = new AppMenuButton(app, metaWindow, false);
-                    this.actor.add(this._windows[i].actor);
-                }
+                this._windowAdded(metaWorkspace, metaWindow);
             }
         }
 
@@ -322,32 +378,46 @@ WindowList.prototype = {
     },
 
     _windowAdded: function(metaWorkspace, metaWindow) {
-        if ( metaWorkspace.index() != global.screen.get_active_workspace_index() ) {
+        // If the application wasn't added to the current workspace,
+        // or the a button for the app already exists, we have nothing to do
+        if (metaWorkspace.index() != global.screen.get_active_workspace_index()) {
             return;
-        }
-
-        for ( let i=0; i<this._windows.length; ++i ) {
-            if ( this._windows[i].metaWindow == metaWindow ) {
-                return;
-            }
         }
 
         let tracker = Shell.WindowTracker.get_default();
         let app = tracker.get_window_app(metaWindow);
-        if ( app && tracker.is_window_interesting(metaWindow) ) {
-            let len = this._windows.length;
-            this._windows[len] = new AppMenuButton(app, metaWindow, true);
-            this.actor.add(this._windows[len].actor);
+        // If we group by apps, we only add new things when a new app is started
+        if (OPTIONS.GROUP_BY_APP) {
+            if (this._windows.some(function(win) { return win.app == app; })) {
+                return;
+            }
+
+            if (app && tracker.is_window_interesting(metaWindow)) {
+                let newButton = new AppMenuButton(app, metaWindow, true, 'APP');
+                this._windows.push(newButton);
+                this.actor.add(newButton.actor);
+            }
+
+        } else {
+            if (this._windows.some(function(win) { return win.metaWindow == metaWindow; })) {
+                return;
+            }
+
+            if (app && tracker.is_window_interesting(metaWindow)) {
+                let newButton = new AppMenuButton(app, metaWindow, true, 'WINDOW');
+                this._windows.push(newButton);
+                this.actor.add(newButton.actor);
+            }
         }
     },
 
     _windowRemoved: function(metaWorkspace, metaWindow) {
-        if ( metaWorkspace.index() != global.screen.get_active_workspace_index() ) {
+        if (metaWorkspace.index() != global.screen.get_active_workspace_index()) {
             return;
         }
 
-        for ( let i=0; i<this._windows.length; ++i ) {
-            if ( this._windows[i].metaWindow == metaWindow ) {
+        for (let i=0; i<this._windows.length; ++i) {
+            if (this._windows[i].metaWindow == metaWindow) {
                 this.actor.remove_actor(this._windows[i].actor);
                 this._windows[i].actor.destroy();
                 this._windows.splice(i, 1);
@@ -356,15 +426,14 @@ WindowList.prototype = {
         }
     },
 
-    _changeWorkspaces: function() {
-        for ( let i=0; i<this._workspaces.length; ++i ) {
-            let ws = this._workspaces[i];
+    _recreateWorkspaces: function() {
+        this._workspaces.forEach(function(ws) {
             ws.disconnect(ws._windowAddedId);
             ws.disconnect(ws._windowRemovedId);
-        }
+        });
 
         this._workspaces = [];
-        for ( let i=0; i<global.screen.n_workspaces; ++i ) {
+        for (let i = 0; i < global.screen.n_workspaces; ++i) {
             let ws = global.screen.get_workspace_by_index(i);
             this._workspaces[i] = ws;
             ws._windowAddedId = ws.connect('window-added', Lang.bind(this, this._windowAdded));
@@ -372,7 +441,7 @@ WindowList.prototype = {
         }
     },
 
-    _allocateBoxes: function(container, box, flags) {    
+    _allocateBoxes: function(container, box, flags) {
         let allocWidth = box.x2 - box.x1;
         let allocHeight = box.y2 - box.y1;
         let [leftMinWidth, leftNaturalWidth] = this._leftBox.get_preferred_width(-1);
@@ -497,7 +566,7 @@ function enable() {
 
     /* Remove Application Menu */
     restoreState["applicationMenu"] = Main.panel._appMenu.actor;
-    Main.panel._leftBox.remove_actor(restoreState["applicationMenu"]);  
+    Main.panel._leftBox.remove_actor(restoreState["applicationMenu"]);
 
     /* Place the Window List */
     Main.panel._leftBox.add(windowList.actor);
@@ -508,7 +577,7 @@ function disable() {
     Main.panel._leftBox.remove_actor(windowList.actor);
 
     /* Restore Application Menu */
-    Main.panel._leftBox.add(restoreState["applicationMenu"]);  
+    Main.panel._leftBox.add(restoreState["applicationMenu"]);
 
     /* unmove the clock */
     let _clock = Main.panel._dateMenu;

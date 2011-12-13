@@ -190,6 +190,11 @@ AppThumbnailHoverMenu.prototype = {
     open: function(animate) {
         this.appSwitcherItem._refresh();
         PopupMenu.PopupMenu.prototype.open.call(this, animate);
+    },
+
+    changeMetaWindow: function(metaWindow) {
+        this.metaWindow = metaWindow;
+        this.appSwitcherItem.changeMetaWindow(metaWindow);
     }
 }
 
@@ -305,26 +310,40 @@ PopupMenuAppSwitcherItem.prototype = {
                                                can_focus: true,
                                                vertical: false });
 
-        this.metaWindowThumbnail = new WindowThumbnail(this.metaWindow, this.app);
-        this._connectToWindowOpen(this.metaWindowThumbnail.actor, this.metaWindow);
-        this.appContainer.add_actor(this.metaWindowThumbnail.actor);
         this.appThumbnails = {};
-
         this.divider = new St.Bin({ style_class: 'app-window-switcher-divider',
                                    y_fill: true });
         this.appContainer.add_actor(this.divider);
+        this._refresh();
 
         this.addActor(this.appContainer);
     },
 
+    changeMetaWindow: function(metaWindow) {
+        this.metaWindow = metaWindow;
+        this._refresh();
+    },
+
     _connectToWindowOpen: function(actor, metaWindow) {
-        actor.connect('button-release-event', Lang.bind(this, function() {
+        actor._button_release_signal_id = actor.connect('button-release-event', Lang.bind(this, function() {
             metaWindow.activate(global.get_current_time());
         }));
     },
 
     _refresh: function() {
-        this.metaWindowThumbnail._refresh();
+        // Check to see if this.metaWindow has changed.  If so, we need to recreate
+        // our thumbnail, etc.
+        if (this.metaWindowThumbnail && this.metaWindowThumbnail.metaWindow == this.metaWindow) {
+            this.metaWindowThumbnail._refresh();
+        } else {
+            if (this.metaWindowThumbnail) {
+                this.metaWindowThumbnail.actor.disconnect(this.metaWindowThumbnail.actor._button_release_signal_id);
+                this.metaWindowThumbnail.destroy();
+            }
+            this.metaWindowThumbnail = new WindowThumbnail(this.metaWindow, this.app);
+            this._connectToWindowOpen(this.metaWindowThumbnail.actor, this.metaWindow);
+            this.appContainer.insert_actor(this.metaWindowThumbnail.actor, 0);
+        }
 
         // Get a list of all windows of our app that are running in the current workspace
         let windows = this.app.get_windows().filter(Lang.bind(this, function(win) { 
