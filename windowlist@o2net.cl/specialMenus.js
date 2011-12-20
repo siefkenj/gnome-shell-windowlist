@@ -17,7 +17,7 @@ const St = imports.gi.St;
 
 
 const HOVER_MENU_TIMEOUT = 1000;
-const THUMBNAIL_DEFAULT_SIZE = 150;
+const THUMBNAIL_DEFAULT_SIZE = Math.max(150, Main.layoutManager.primaryMonitor.width / 10);
 
 function RightClickPopupMenu() {
     this._init.apply(this, arguments);
