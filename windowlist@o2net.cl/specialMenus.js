@@ -29,13 +29,13 @@ RightClickPopupMenu.prototype = {
     _init: function(actor, params) {
         // openOnButton: which button opens the menu
         params = Params.parse(params, { openOnButton: 3 });
-        
+
         PopupMenu.PopupMenu.prototype._init.call(this, actor, 0, St.Side.TOP);
-        
+
         this.openOnButton = params.openOnButton;
         this._parentActor = actor;
         this._parentActor.connect('button-release-event', Lang.bind(this, this._onParentActorButtonRelease));
-        
+
         this.actor.hide();
         Main.uiGroup.add_actor(this.actor);
     },
@@ -45,7 +45,6 @@ RightClickPopupMenu.prototype = {
         if (Shell.get_event_state(event) & buttonMask) {
             this.toggle();
         }
-        
     }
 };
 
@@ -62,7 +61,7 @@ HoverMenuController.prototype = {
         params = Params.parse(params, { reactive: true,
                                         clickShouldImpede: true,
                                         clickShouldClose: true });
-        
+
         this._parentActor = actor;
         this._parentMenu = menu;
 
@@ -161,7 +160,7 @@ HoverMenu.prototype = {
         this._parentActor = actor;
 
         this.actor.hide();
-        
+
         if (params.reactive) {
             Main.layoutManager.addChrome(this.actor);
         } else {
@@ -188,90 +187,19 @@ AppThumbnailHoverMenu.prototype = {
     },
 
     open: function(animate) {
+        // Refresh all the thumbnails, etc when the menu opens.  These cannot
+        // be created when the menu is initalized because a lot of the clutter window surfaces
+        // have not been created yet...
         this.appSwitcherItem._refresh();
         PopupMenu.PopupMenu.prototype.open.call(this, animate);
     },
 
-    changeMetaWindow: function(metaWindow) {
+    setMetaWindow: function(metaWindow) {
         this.metaWindow = metaWindow;
-        this.appSwitcherItem.changeMetaWindow(metaWindow);
+        this.appSwitcherItem.setMetaWindow(metaWindow);
     }
 }
 
-function RightClickAppPopupMenu() {
-    this._init.apply(this, arguments);
-}
-
-RightClickAppPopupMenu.prototype = {
-    __proto__: RightClickPopupMenu.prototype,
-
-    _init: function(actor, metaWindow, app, params) {
-        RightClickPopupMenu.prototype._init.call(this, actor, params);
-        
-        this.metaWindow = metaWindow;
-        this.app = app;
-
-        this._menuItemName = new PopupMenu.PopupMenuItem(this.app.get_name(), { reactive: false });
-        this.addMenuItem(this._menuItemName);
-
-        this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-        this._menuItemCloseWindow = new PopupMenu.PopupMenuItem('Close');
-        this._menuItemCloseWindow.connect('activate', Lang.bind(this, this._onMenuItemCloseWindowActivate));
-        this.addMenuItem(this._menuItemCloseWindow);
-        this._menuItemMinimizeWindow = new PopupMenu.PopupMenuItem('Minimize');
-        this._menuItemMinimizeWindow.connect('activate', Lang.bind(this, this._onMenuItemMinimizeWindowActivate));
-        this.addMenuItem(this._menuItemMinimizeWindow);
-        this._menuItemMaximizeWindow = new PopupMenu.PopupMenuItem('Maximize');
-        this._menuItemMaximizeWindow.connect('activate', Lang.bind(this, this._onMenuItemMaximizeWindowActivate));
-        this.addMenuItem(this._menuItemMaximizeWindow)
-    },
-
-    _onMenuItemMaximizeWindowActivate: function() {
-        //causes gnome-shell 3.0.2 to crash
-        //this.metaWindow.maximize(true);
-    },
-
-    _onMenuItemMinimizeWindowActivate: function() {
-        this.metaWindow.minimize(global.get_current_time());
-    },
-
-    _onMenuItemCloseWindowActivate: function() {
-        this.app.request_quit();
-    },
-
-    open: function(animate) {
-        // Dynamically generate the thumbnail when we open the menu since
-        // when extensions first load, the thumbnail is unavailable
-        this.generateThumbnail();
-        RightClickPopupMenu.prototype.open.call(this, animate);
-    },
-
-    generateThumbnail: function() {
-        // If we already made a thumbnail, we don't need to make it again
-        if (this.thumbnail) {
-            return;
-        }
-
-        // Get a pretty thumbnail of our app
-        let mutterWindow = this.metaWindow.get_compositor_private();
-        if (mutterWindow) {
-            let windowTexture = mutterWindow.get_texture();
-            let [width, height] = windowTexture.get_size();
-            let scale = Math.min(1.0, THUMBNAIL_DEFAULT_SIZE / width, THUMBNAIL_DEFAULT_SIZE / height);
-            this.thumbnail = new Clutter.Clone ({ source: windowTexture,
-                                                  reactive: true,
-                                                  width: width * scale,
-                                                  height: height * scale });
-
-            this.thumnailMenuItem = new PopupMenuThumbnailItem(this.thumbnail);
-            this.addMenuItem(this.thumnailMenuItem);
-            this.thumnailMenuItem.connect('activate', Lang.bind(this, function() {
-                this.metaWindow.activate(global.get_current_time());
-            }));
-        }
-    }
-};
 
 function PopupMenuThumbnailItem() {
     this._init.apply(this, arguments);
@@ -300,10 +228,10 @@ PopupMenuAppSwitcherItem.prototype = {
     _init: function (metaWindow, app, params) {
         params = Params.parse(params, { hover: false });
         PopupMenu.PopupBaseMenuItem.prototype._init.call(this, params);
-        
+
         this.metaWindow = metaWindow;
         this.app = app;
-        
+
         this.appContainer = new St.BoxLayout({ style_class: 'app-window-switcher',
                                                reactive: true,
                                                track_hover: true,
@@ -312,16 +240,15 @@ PopupMenuAppSwitcherItem.prototype = {
 
         this.appThumbnails = {};
         this.divider = new St.Bin({ style_class: 'app-window-switcher-divider',
-                                   y_fill: true });
+                                    y_fill: true });
         this.appContainer.add_actor(this.divider);
         this._refresh();
 
         this.addActor(this.appContainer);
     },
 
-    changeMetaWindow: function(metaWindow) {
+    setMetaWindow: function(metaWindow) {
         this.metaWindow = metaWindow;
-        this._refresh();
     },
 
     _connectToWindowOpen: function(actor, metaWindow) {
@@ -340,15 +267,21 @@ PopupMenuAppSwitcherItem.prototype = {
                 this.metaWindowThumbnail.actor.disconnect(this.metaWindowThumbnail.actor._button_release_signal_id);
                 this.metaWindowThumbnail.destroy();
             }
-            this.metaWindowThumbnail = new WindowThumbnail(this.metaWindow, this.app);
-            this._connectToWindowOpen(this.metaWindowThumbnail.actor, this.metaWindow);
-            this.appContainer.insert_actor(this.metaWindowThumbnail.actor, 0);
+            // If our metaWindow is null, just move along
+            if (this.metaWindow) {
+                this.metaWindowThumbnail = new WindowThumbnail(this.metaWindow, this.app);
+                this._connectToWindowOpen(this.metaWindowThumbnail.actor, this.metaWindow);
+                this.appContainer.insert_actor(this.metaWindowThumbnail.actor, 0);
+            }
         }
 
         // Get a list of all windows of our app that are running in the current workspace
-        let windows = this.app.get_windows().filter(Lang.bind(this, function(win) { 
-                                                            let isDifferent =  (win != this.metaWindow);
-                                                            let isSameWorkspace = (win.get_workspace() == this.metaWindow.get_workspace());
+        let windows = this.app.get_windows().filter(Lang.bind(this, function(win) {
+                                                            let metaWorkspace = null;
+                                                            if (this.metaWindow)
+                                                                metaWorkspace = this.metaWindow.get_workspace();
+                                                            let isDifferent = (win != this.metaWindow);
+                                                            let isSameWorkspace = (win.get_workspace() == metaWorkspace);
                                                             return isDifferent && isSameWorkspace;
                                                     }));
         // Update appThumbnails to include new programs
@@ -363,7 +296,7 @@ PopupMenuAppSwitcherItem.prototype = {
                 this._connectToWindowOpen(this.appThumbnails[metaWindow].thumbnail.actor, metaWindow);
             }
         }));
-        
+
         // Update appThumbnails to remove old programs
         for (let win in this.appThumbnails) {
             if (windows.indexOf(this.appThumbnails[win].metaWindow) == -1) {
@@ -455,8 +388,96 @@ WindowThumbnail.prototype = {
     _refresh: function() {
         // Replace the old thumbnail
         this.thumbnail = this._getThumbnail();
-        
+
         this.thumbnailActor.child = this.thumbnail;
         this.titleActor.text = this.metaWindow.get_title();
+    }
+};
+
+
+// A right click menu for AppGroup's.  Gives the option to
+// expand/collapse an AppGroup and a few other things
+function RightClickAppPopupMenu() {
+    this._init.apply(this, arguments);
+}
+
+RightClickAppPopupMenu.prototype = {
+    __proto__: RightClickPopupMenu.prototype,
+
+    _init: function(actor, appGroup, params) {
+        RightClickPopupMenu.prototype._init.call(this, actor, params);
+
+        this.appGroup = appGroup;
+        this.app = this.appGroup.app;
+
+        this._menuItemName = new PopupMenu.PopupMenuItem(this.app.get_name(), { reactive: false });
+        this.addMenuItem(this._menuItemName);
+
+        this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        this._menuItemExpandGroup = new PopupMenu.PopupMenuItem("Expand Group");
+        this._menuItemExpandGroup.connect('activate', Lang.bind(this, this._onMenuItemExpandGroup));
+        this.addMenuItem(this._menuItemExpandGroup);
+        this._menuItemConsolidateGroup = new PopupMenu.PopupMenuItem("Consolidate Group");
+        this._menuItemConsolidateGroup.connect('activate', Lang.bind(this, this._onMenuItemConsolidateGroup));
+        this.addMenuItem(this._menuItemConsolidateGroup);
+
+        // I am really afraid of accidentally clicking this menu option. . .
+//        this._menuItemCloseWindow = new PopupMenu.PopupMenuItem('Close All Windows');
+//        this._menuItemCloseWindow.connect('activate', Lang.bind(this, this._onMenuItemCloseWindowActivate));
+//        this.addMenuItem(this._menuItemCloseWindow);
+    },
+
+    _onMenuItemExpandGroup: function() {
+        this.appGroup.showWindowButtons(true);
+        this.appGroup.hideAppButton(true);
+    },
+
+    _onMenuItemConsolidateGroup: function() {
+        this.appGroup.hideWindowButtons(true);
+        this.appGroup.showAppButton(true);
+    },
+
+    _onMenuItemCloseWindowActivate: function() {
+        this.app.request_quit();
+    },
+
+    open: function(animate) {
+        if (this.appGroup.appButtonVisible) {
+            this._menuItemExpandGroup.actor.show();
+        } else {
+            this._menuItemExpandGroup.actor.hide();
+        }
+        if (this.appGroup.windowButtonsVisible) {
+            this._menuItemConsolidateGroup.actor.show();
+        } else {
+            this._menuItemConsolidateGroup.actor.hide();
+        }
+        RightClickPopupMenu.prototype.open.call(this, animate);
+    },
+
+    generateThumbnail: function() {
+        // If we already made a thumbnail, we don't need to make it again
+        if (this.thumbnail) {
+            return;
+        }
+
+        // Get a pretty thumbnail of our app
+        let mutterWindow = this.metaWindow.get_compositor_private();
+        if (mutterWindow) {
+            let windowTexture = mutterWindow.get_texture();
+            let [width, height] = windowTexture.get_size();
+            let scale = Math.min(1.0, THUMBNAIL_DEFAULT_SIZE / width, THUMBNAIL_DEFAULT_SIZE / height);
+            this.thumbnail = new Clutter.Clone ({ source: windowTexture,
+                                                  reactive: true,
+                                                  width: width * scale,
+                                                  height: height * scale });
+
+            this.thumnailMenuItem = new PopupMenuThumbnailItem(this.thumbnail);
+            this.addMenuItem(this.thumnailMenuItem);
+            this.thumnailMenuItem.connect('activate', Lang.bind(this, function() {
+                this.metaWindow.activate(global.get_current_time());
+            }));
+        }
     }
 };
