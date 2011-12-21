@@ -271,6 +271,10 @@ AppTracker.prototype = {
             throw { name: 'AppTrackerError', message: 'get_window_app returned null and there was no record of metaWindow in internal database' };
 
         return app;
+    },
+
+    is_window_interesting: function(metaWindow) {
+        return this.tracker.is_window_interesting(metaWindow);
     }
 };
 
@@ -323,8 +327,9 @@ AppGroup.prototype = {
     // windows being added and removed
     watchWorkspace: function(metaWorkspace) {
         if (!this.metaWorkspaces.contains(metaWorkspace)) {
-            let windowAddedSignal = metaWorkspace.connect('window-added', Lang.bind(this, this._windowAdded));
-            let windowRemovedSignal = metaWorkspace.connect('window-removed', Lang.bind(this, this._windowRemoved));
+            // We use connect_after so that the window-tracker time to identify the app, otherwise get_window_app might return null!
+            let windowAddedSignal = metaWorkspace.connect_after('window-added', Lang.bind(this, this._windowAdded));
+            let windowRemovedSignal = metaWorkspace.connect_after('window-removed', Lang.bind(this, this._windowRemoved));
             this.metaWorkspaces.set(metaWorkspace, { workspace: metaWorkspace,
                                                      signals: [windowAddedSignal, windowRemovedSignal] });
         }
@@ -648,7 +653,7 @@ AppList.prototype = {
         // When a window is closed, we need to check if the app it belongs
         // to has no windows left.  If so, we need to remove the corresponding AppGroup
         //let tracker = Shell.WindowTracker.get_default();
-/*        let tracker = this._tracker;
+        let tracker = this._tracker;
         let app;
         try {
             app = tracker.get_window_app(metaWindow);
@@ -656,9 +661,10 @@ AppList.prototype = {
             log(e.name + ': ' + e.message);
             return;
         }
-        if (app && app.get_windows().length == 0) {
-            //this._removeApp(app);
-        } */
+        let hasWindowsOnWorkspace = app.get_windows().some(function(win) { return win.get_workspace() == metaWorkspace; });
+        if (app && !hasWindowsOnWorkspace) {
+            this._removeApp(app);
+        }
     },
 
     destroy: function() {
