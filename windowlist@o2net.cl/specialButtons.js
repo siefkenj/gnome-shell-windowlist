@@ -112,12 +112,12 @@ IconLabelButton.prototype = {
         let allocWidth = box.x2 - box.x1;
         let allocHeight = box.y2 - box.y1;
         let childBox = new Clutter.ActorBox();
-        let direction = this.actor.get_direction();
+        let direction = Clutter.get_default_text_direction();
 
         // Set the icon to be left-justified (or right-justified) and centered vertically
         let [iconMinWidth, iconMinHeight, iconNaturalWidth, iconNaturalHeight] = this._iconBox.get_preferred_size();
         [childBox.y1, childBox.y2] = center(allocHeight, iconNaturalHeight);
-        if (direction == St.TextDirection.LTR) {
+        if (direction == Clutter.TextDirection.LTR) {
             [childBox.x1, childBox.x2] = [0, Math.min(iconNaturalWidth, allocWidth)];
         } else {
             [childBox.x1, childBox.x2] = [Math.max(0, allocWidth - iconNaturalWidth), allocWidth];
@@ -129,7 +129,7 @@ IconLabelButton.prototype = {
         let iconWidth = childBox.x2 - childBox.x1;
         [minWidth, minHeight, naturalWidth, naturalHeight] = this._label.actor.get_preferred_size();
         [childBox.y1, childBox.y2] = center(allocHeight, naturalHeight);
-        if (direction == St.TextDirection.LTR) {
+        if (direction == Clutter.TextDirection.LTR) {
             childBox.x1 = Math.floor(iconWidth * this.textOffsetFactor);
             childBox.x2 = Math.min(childBox.x1 + naturalWidth, allocWidth, MAX_BUTTON_WIDTH);
         } else {
@@ -231,10 +231,10 @@ AppButton.prototype = {
 
     _init: function(params) {
         params = Params.parse(params, { app: null,
-                                        iconSize: 32,
+                                        iconSize: 24,
                                         textOffsetFactor: 0.5 });
         this.app = params.app;
-        this.icon = this.app.get_faded_icon(2 * params.iconSize);
+        this.icon = this.app.get_faded_icon(1 * params.iconSize);
         IconLabelButton.prototype._init.call(this, this.icon, params.textOffsetFactor);
 
         let tracker = Shell.WindowTracker.get_default();
@@ -254,7 +254,7 @@ AppButton.prototype = {
     destroy: function() {
         let tracker = Shell.WindowTracker.get_default();
         tracker.disconnect(this._trackerSignal);
-        this._container.destroy_children();
+        this._container.destroy_all_children();
         this.actor.destroy();
     }
 };
@@ -301,7 +301,7 @@ WindowButton.prototype = {
         this.signals.forEach(Lang.bind(this, function(s) {
             this.metaWindow.disconnect(s);
         }));
-        this._container.destroy_children();
+        this._container.destroy_all_children();
         this.actor.destroy();
     },
 
@@ -406,11 +406,11 @@ ButtonBox.prototype = {
     },
 
     clear: function() {
-        this.actor.destroy_children();
+        this.actor.destroy_all_children();
     },
 
     destroy: function() {
-        this.actor.destroy_children();
+        this.actor.destroy_all_children();
         this.actor.destroy();
         this.actor = null;
     }
