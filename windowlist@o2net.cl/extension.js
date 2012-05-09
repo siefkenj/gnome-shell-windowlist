@@ -27,13 +27,13 @@ const Signals = imports.signals;
 
 const PANEL_ICON_SIZE = 24;
 const SPINNER_ANIMATION_TIME = 1;
-const THUMBNAIL_DEFAULT_SIZE = 150;
+const THUMBNAIL_DEFAULT_SIZE = 120;
 const HOVER_MENU_DELAY = 1; // seconds
 
 // Load our extension so we can access other files in our extensions dir as libraries
-const Extension = imports.ui.extensionSystem.extensions['windowlist@o2net.cl'];
-const SpecialMenus = Extension.specialMenus;
-const SpecialButtons = Extension.specialButtons;
+const Extension = imports.misc.extensionUtils.getCurrentExtension();
+const SpecialMenus = Extension.imports.specialMenus;
+const SpecialButtons = Extension.imports.specialButtons;
 
 const OPTIONS = {
                     // DISPLAY_TITLE
@@ -319,8 +319,8 @@ AppGroup.prototype = {
         this.menuManager = new PopupMenu.PopupMenuManager({actor: this.actor});
         this.menuManager.addMenu(this.rightClickMenu);
         // Set up the hover menu
-        this.hoverMenu = new Extension.specialMenus.AppThumbnailHoverMenu(this.actor, this.metaWindow, this.app)
-        this.hoverController = new Extension.specialMenus.HoverMenuController(this.actor, this.hoverMenu);
+        this.hoverMenu = new SpecialMenus.AppThumbnailHoverMenu(this.actor, this.metaWindow, this.app)
+        this.hoverController = new SpecialMenus.HoverMenuController(this.actor, this.hoverMenu);
     },
 
     // Add a workspace to the list of workspaces that are watched for
@@ -395,7 +395,7 @@ AppGroup.prototype = {
         if (!this.lastFocused)
             return;
 
-        if (Shell.get_event_state(event) & Clutter.ModifierType.BUTTON1_MASK) {
+        if (event.get_state() & Clutter.ModifierType.BUTTON1_MASK) {
             if (this.rightClickMenu && this.rightClickMenu.isOpen) {
                 this.rightClickMenu.toggle();
             }
@@ -834,14 +834,14 @@ function init() {
 
 function enable() {
     /* Move Clock - http://www.fpmurphy.com/gnome-shell-extensions/moveclock.tar.gz */
-    let _children = Main.panel._rightBox.get_children();
-    let _clock    = Main.panel._dateMenu;
-    restoreState["_dateMenu"] = _clock.actor.get_parent();
-    restoreState["_dateMenu"].remove_actor(_clock.actor);
+//    let _children = Main.panel._rightBox.get_children();
+//    let _clock    = Main.panel._dateMenu;
+//    restoreState["_dateMenu"] = _clock.actor.get_parent();
+//    restoreState["_dateMenu"].remove_actor(_clock.actor);
     // Add a wrapper around the clock so it won't get squished (ellipsized)
     // and so that it doesn't resize when the time chagnes
-    clockWrapper = new StableLabel(_clock);
-    Main.panel._rightBox.insert_actor(clockWrapper.actor, _children.length - 1);
+//    clockWrapper = new StableLabel(_clock);
+//    Main.panel._rightBox.insert_actor(clockWrapper.actor, _children.length - 1);
 
     /* Remove Application Menu */
     restoreState["applicationMenu"] = Main.panel._appMenu.actor;
@@ -862,13 +862,13 @@ function disable() {
     Main.panel._leftBox.add(restoreState["applicationMenu"]);
 
     /* unmove the clock */
-    let _clock = Main.panel._dateMenu;
-    let _clock_parent = _clock.actor.get_parent();
-    if (_clock_parent) {
-        _clock_parent.remove_actor(_clock.actor);
-    }
-    if (restoreState["_dateMenu"]) {
-        restoreState["_dateMenu"].add(_clock.actor, 0);
-        clockWrapper.destroy();
-    }
+//    let _clock = Main.panel._dateMenu;
+//    let _clock_parent = _clock.actor.get_parent();
+//    if (_clock_parent) {
+//        _clock_parent.remove_actor(_clock.actor);
+//    }
+//    if (restoreState["_dateMenu"]) {
+//        restoreState["_dateMenu"].add(_clock.actor, 0);
+//        clockWrapper.destroy();
+//    }
 }
