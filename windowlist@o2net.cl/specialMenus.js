@@ -42,7 +42,7 @@ RightClickPopupMenu.prototype = {
 
     _onParentActorButtonRelease: function(actor, event) {
         let buttonMask = Clutter.ModifierType['BUTTON' + this.openOnButton + '_MASK'];
-        if (Shell.get_event_state(event) & buttonMask) {
+        if (event.get_state() & buttonMask) {
             this.toggle();
         }
     }
@@ -271,7 +271,7 @@ PopupMenuAppSwitcherItem.prototype = {
             if (this.metaWindow) {
                 this.metaWindowThumbnail = new WindowThumbnail(this.metaWindow, this.app);
                 this._connectToWindowOpen(this.metaWindowThumbnail.actor, this.metaWindow);
-                this.appContainer.insert_actor(this.metaWindowThumbnail.actor, 0);
+                this.appContainer.insert_child_at_index(this.metaWindowThumbnail.actor, 0);
             }
         }
 
