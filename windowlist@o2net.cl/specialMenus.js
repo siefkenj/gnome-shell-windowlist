@@ -17,7 +17,8 @@ const St = imports.gi.St;
 
 
 const HOVER_MENU_TIMEOUT = 1000;
-const THUMBNAIL_DEFAULT_SIZE = Math.max(150, Main.layoutManager.primaryMonitor.width / 10);
+const THUMBNAIL_DEFAULT_HEIGHT = Math.max(150, Main.layoutManager.primaryMonitor.height / 10);
+const THUMBNAIL_DEFAULT_WIDTH = Math.max(150, Main.layoutManager.primaryMonitor.width / 10);
 
 function RightClickPopupMenu() {
     this._init.apply(this, arguments);
@@ -331,11 +332,11 @@ WindowThumbnail.prototype = {
                                         vertical: true });
         this.thumbnailActor = new St.Bin({ y_fill: false,
                                            y_align: St.Align.MIDDLE });
-        this.thumbnailActor.height = THUMBNAIL_DEFAULT_SIZE;
+        this.thumbnailActor.height = THUMBNAIL_DEFAULT_HEIGHT;
         this.titleActor = new St.Label();
         //TODO: should probably do this in a smarter way in the get_size_request event or something...
         //fixing this should also allow the text to be centered
-        this.titleActor.width = THUMBNAIL_DEFAULT_SIZE;
+        this.titleActor.width = THUMBNAIL_DEFAULT_WIDTH;
 
         this.actor.add(this.thumbnailActor);
         this.actor.add(this.titleActor);
@@ -375,7 +376,7 @@ WindowThumbnail.prototype = {
         if (mutterWindow) {
             let windowTexture = mutterWindow.get_texture();
             let [width, height] = windowTexture.get_size();
-            let scale = Math.min(1.0, THUMBNAIL_DEFAULT_SIZE / width, THUMBNAIL_DEFAULT_SIZE / height);
+            let scale = Math.min(1.0, THUMBNAIL_DEFAULT_WIDTH / width, THUMBNAIL_DEFAULT_HEIGHT / height);
             thumbnail = new Clutter.Clone ({ source: windowTexture,
                                              reactive: true,
                                              width: width * scale,
@@ -467,7 +468,7 @@ RightClickAppPopupMenu.prototype = {
         if (mutterWindow) {
             let windowTexture = mutterWindow.get_texture();
             let [width, height] = windowTexture.get_size();
-            let scale = Math.min(1.0, THUMBNAIL_DEFAULT_SIZE / width, THUMBNAIL_DEFAULT_SIZE / height);
+            let scale = Math.min(1.0, THUMBNAIL_DEFAULT_WIDTH / width, THUMBNAIL_DEFAULT_HEIGHT / height);
             this.thumbnail = new Clutter.Clone ({ source: windowTexture,
                                                   reactive: true,
                                                   width: width * scale,
