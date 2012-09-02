@@ -4,7 +4,6 @@
     color: blue;
     font-style: italic;
 }
-
 .window-list-box {
     spacing: 6px;
     -title-format: trad;
@@ -24,7 +23,50 @@
     padding: 6px;
     border-radius: 4px;
 }
+/* when option-text-showing is active
+ * it means we are showing a description
+ * for some way to manipulate the window.
+ * Change the te:t color accordingly */
+.window-thumbnail:option-text-showing {
+    color: #aaaaaa;
+}
 
 .window-thumbnail:hover {
     background-color: #4c4c4c;
+}
+
+/* Window options buttons. */
+.window-options-box {
+    /* the following is about 1/2 the height of a window options button,
+     * causing the buttons to move down & overlap with the thumbnail,
+     * saving vertical space.
+    height: 1em;
+     */
+}
+
+.window-options-button {
+    background-image: url("window-options-button.svg");
+    height: 2em;
+    width: 2em;
+    text-align: center;
+    padding-top: .2em;
+    padding-bottom: .2em;
+    color: white;
+}
+
+.window-options-button:hover {
+    -st-background-image-shadow: 0px 0px 6px white;
+}
+
+.window-options-button:toggled {
+    color: #76b0ec;
+    background: url("window-options-button-toggled.svg");
+}
+
+/* Althought the MAXIMIZE button gets toggled I do not want this to
+ * be visible.
+ */
+#MAXIMIZE:toggled {
+    color: white;
+    background: url("window-options-button.svg");
 }

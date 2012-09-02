@@ -29,8 +29,9 @@ function IconLabelButton() {
 
 IconLabelButton.prototype = {
     _init: function(icon, textOffsetFactor) {
-        if (icon == null)
+        if (icon == null) {
             throw 'IconLabelButton icon argument must be non-null';
+        }
         this.textOffsetFactor = textOffsetFactor || 0.5;
 
         this.actor = new St.Bin({ style_class: 'panel-button',
@@ -219,9 +220,11 @@ IconLabelButton.prototype = {
     }
 };
 
-// Button with icon and label.  Click events
-// need to be attached manually, but automatically
-// highlight when a window of app has focus.
+// Button with icon and label tied to a particular app
+// (i.e., all windows of the same application).  Click events
+// need to be attached manually, but the button
+// is automatically
+// highlighted when a window of app has focus.
 function AppButton() {
     this._init.apply(this, arguments);
 }
@@ -231,10 +234,14 @@ AppButton.prototype = {
 
     _init: function(params) {
         params = Params.parse(params, { app: null,
-                                        iconSize: 24,
+                                        iconSize: 32,
                                         textOffsetFactor: 0.5 });
         this.app = params.app;
-        this.icon = this.app.get_faded_icon(1 * params.iconSize);
+        // FIXME: if the icon doesn't go above the height of the actor, the top
+        // pixel isn't reactive..., so changing the multiplication
+        // factor to 1 means that moving the mouse to the top of the
+        // screen will fail to activate a list item.
+        this.icon = this.app.get_faded_icon(2 * params.iconSize);
         IconLabelButton.prototype._init.call(this, this.icon, params.textOffsetFactor);
 
         let tracker = Shell.WindowTracker.get_default();
@@ -320,7 +327,7 @@ WindowButton.prototype = {
     },
 
     _onButtonRelease: function(actor, event) {
-        if (Shell.get_event_state(event) & Clutter.ModifierType.BUTTON1_MASK) {
+        if (event.get_state() & Clutter.ModifierType.BUTTON1_MASK) {
             if (this.metaWindow.has_focus()) {
                 this.metaWindow.minimize(global.get_current_time());
             } else {
@@ -395,6 +402,48 @@ ButtonBox.prototype = {
                    this.actor.hide();
                }
              });
+    },
+
+    expandChild: function (index) {
+        let children = this.actor.get_children();
+
+        /* have to simultaneously squish the other children & expand the
+         * specified child
+         */
+        for (let i = 0; i < children.length; ++i) {
+            let child = children[i];
+            child._originalWidth = child.width;
+            Tweener.addTween(child,
+                    // FIXME: if width is set to 0 we get a whole bunch of
+                    // Cluter-CRITICAL as above.
+                { width: (i === index ? this.actor.width : 3),
+                  time: BUTTON_BOX_ANIMATION_TIME,
+                  transition: "easeOutQuad",
+                  onComplete: (i === index ? function () {} :
+                      Lang.bind(child, function () {
+                          this.hide();
+                      }))
+                });
+        }
+        this._expanded = true;
+    },
+
+    undoExpand: function () {
+        if (!this._expanded) {
+            return;
+        }
+        // FIXME: fadein.
+        let children = this.actor.get_children();
+        for (let i = 0; i < children.length; ++i) {
+            let child = children[i];
+            child.show();
+            Tweener.addTween(child,
+                { width: child._originalWidth,
+                  time: BUTTON_BOX_ANIMATION_TIME,
+                  transition: "easeOutQuad"
+                });
+        }
+        this._expanded = false;
     },
 
     add: function(button) {
