@@ -473,7 +473,6 @@ PopupMenuAppSwitcherItem.prototype = {
                 this.appContainer.insert_child_at_index(this.metaWindowThumbnail.actor, 0);
             }
         }
-        global.xxx = this.appContainer
 
         // Get a list of all windows of our app that are running in the current workspace
         // and that aren't the currently focused this.metaWindow
