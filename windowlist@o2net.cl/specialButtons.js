@@ -331,7 +331,9 @@ WindowButton.prototype = {
             if (this.metaWindow.has_focus()) {
                 this.metaWindow.minimize(global.get_current_time());
             } else {
-                this.metaWindow.activate(global.get_current_time());
+                let time = global.get_current_time()
+                this.metaWindow.lastActivatedTime = time
+                this.metaWindow.activate(time);
             }
         }
     },

@@ -72,6 +72,9 @@ const WindowOptions = {
             }
             win.raise();
             win.maximize(Meta.MaximizeFlags.BOTH);
+            // make sure we note the maximize time so that we can sort
+            // more recently used windows to be earlier in the window list
+            win.lastActivatedTime = global.get_current_time()
         }
     },
 
@@ -445,13 +448,17 @@ PopupMenuAppSwitcherItem.prototype = {
 
     _connectToWindowOpen: function(actor, metaWindow) {
         actor._button_release_signal_id = actor.connect('button-release-event', Lang.bind(this, function() {
-            metaWindow.activate(global.get_current_time());
+            // make sure we note the maximize time so that we can sort
+            // more recently used windows to be earlier in the window list
+            let time = global.get_current_time()
+            metaWindow.lastActivatedTime = time
+            metaWindow.activate(time);
         }));
     },
 
     _refresh: function() {
         // Check to see if this.metaWindow has changed.  If so, we need to recreate
-        // our thumbnail, etc.
+        // our thumbnail, etc. and place this at the very front of the list of apps
         if (this.metaWindowThumbnail && this.metaWindowThumbnail.metaWindow == this.metaWindow) {
             this.metaWindowThumbnail._refresh();
         } else {
@@ -466,8 +473,10 @@ PopupMenuAppSwitcherItem.prototype = {
                 this.appContainer.insert_child_at_index(this.metaWindowThumbnail.actor, 0);
             }
         }
+        global.xxx = this.appContainer
 
         // Get a list of all windows of our app that are running in the current workspace
+        // and that aren't the currently focused this.metaWindow
         let windows = this.app.get_windows().filter(Lang.bind(this, function(win) {
                                                             let metaWorkspace = null;
                                                             if (this.metaWindow)
@@ -502,6 +511,31 @@ PopupMenuAppSwitcherItem.prototype = {
             }
         }
 
+        // Sort appThumbnails so that most recently used windows
+        // show earlier on the list. We don't want to change the position
+        // of this.metaWindow or the divider actor, so start at index 2 in the
+        // array of children for appContainer.  Note: we are sorting in reverse
+        // order, so that newest windows appear furthest left.
+        let applist = this.appContainer.get_children().slice(2).map(function(elm) {
+            let lastActivatedTime = elm._delegate.metaWindow.lastActivatedTime;
+            lastActivatedTime = lastActivatedTime ? lastActivatedTime : 0;
+            return [lastActivatedTime, elm];
+        }).sort(function(a,b) {
+            if (a[0] > b[0]) {
+                return -1;
+            } else if (a[0] < b[0]) {
+                return 1;
+            } else {
+                return 0;
+            }
+        });
+        applist.forEach(Lang.bind(this, function(elm, i) {
+            let actor = elm[1];
+            // Insert at index i+2; i.e., right after this.metaWindow and the spearator actor
+            this.appContainer.remove_child(actor)
+            this.appContainer.add_actor(actor);
+        }));
+
         // Show the divider if there is more than one window belonging to this app
         if (Object.keys(this.appThumbnails).length > 0) {
             this.divider.show();
@@ -526,6 +560,7 @@ WindowThumbnail.prototype = {
                                         reactive: true,
                                         can_focus: true,
                                         vertical: true });
+        this.actor._delegate = this;
         this.thumbnailActor = new St.Bin({ y_fill: false,
                                            y_align: St.Align.MIDDLE });
         this.thumbnailActor.height = THUMBNAIL_DEFAULT_SIZE;
@@ -780,6 +815,13 @@ WindowThumbnail.prototype = {
 
         this.thumbnailActor.child = this.thumbnail;
         this.titleActor.text = this.metaWindow.get_title();
+
+        // Make sure our window-option buttons are hidden.
+        // Since they are hidden on a mouse-leave event
+        // and these are not always caught, let's force a
+        // hide here.
+        this.windowOptions.opacity = 0;
+        this.windowOptions.reactive = false;
     }
 };
 
@@ -1008,7 +1050,11 @@ RightClickAppPopupMenu.prototype = {
             this.thumnailMenuItem = new PopupMenuThumbnailItem(this.thumbnail);
             this.addMenuItem(this.thumnailMenuItem);
             this.thumnailMenuItem.connect('activate', Lang.bind(this, function() {
-                this.metaWindow.activate(global.get_current_time());
+                // make sure we note the maximize time so that we can sort
+                // more recently used windows to be earlier in the window list
+                let time = global.get_current_time()
+                this.metaWindow.lastActivatedTime = time
+                this.metaWindow.activate(time);
             }));
         }
     }
