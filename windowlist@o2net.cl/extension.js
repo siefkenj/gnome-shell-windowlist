@@ -6,11 +6,16 @@
 //   Kurt Rottmann <kurtrottmann@gmail.com>
 //   Jason Siefken
 //   Amy Chan <mathematical.coffee@gmail.com> (window options stuff)
+//   Christian Schubert <schubi@erlangen.ccc.de>
 
 // Taking code from
 // Copyright (C) 2011 R M Yorston
 // Licence: GPLv2+
 // http://intgat.tigress.co.uk/rmy/extensions/gnome-shell-frippery-0.2.3.tgz
+
+// Taking code from
+// Stephen Zhang <stephenpcg@gmail.com> (original extend-left-box extension)
+// https://github.com/StephenPCG/extend-left-box
 
 const Clutter = imports.gi.Clutter;
 const Lang = imports.lang;
@@ -34,6 +39,7 @@ const OPTIONS = {
     // DISPLAY_TITLE
     //     TITLE: display the app title next to each icon
     //     APP: display the app name next to each icon
+    //     BOTH: display app name and title
     //     NONE: display no text next to each icon
     // Note, this option only applies when app grouping is enabled
     DISPLAY_TITLE: 'TITLE',
@@ -53,8 +59,8 @@ const OPTIONS = {
     WINDOW_OPTION_BUTTONS: [
         'MINIMIZE',
         'MAXIMIZE', // combined maximize/restore button
-        'MOVE',
-        'RESIZE',
+        //'MOVE',
+        //'RESIZE',
         'ALWAYS_ON_TOP',  // always on top toggle
         'ALWAYS_ON_VISIBLE_WORKSPACE', // always on visible workspace toggle
         'CLOSE_WINDOW' // close window
@@ -68,6 +74,10 @@ const OPTIONS = {
     USE_WNCK: false
 };
 
+// Needed for moving clock
+let dateMenu;
+// For extending leftbox
+let panelConnectId;
 
 // Load our extension so we can access other files in our extensions dir as libraries
 // *Note* this must be done after OPTIONS is defined since OPTIONS is referenced
@@ -78,7 +88,7 @@ const SpecialButtons = Extension.imports.specialButtons;
 
 
 // Globally variables needed for disabling the extension
-let windowListManager, restoreState={}, clockWrapper, appTracker;
+let windowListManager, clockWrapper, appTracker;
 
 
 
@@ -554,6 +564,11 @@ AppGroup.prototype = {
                     this._appButton.setText(appName);
                     break;
                 }
+            case 'BOTH':
+                if (appName && title) {
+                    this._appButton.setText(appName+' ('+title+')');
+                    break;
+                }
             case 'NONE':
             default:
                 this._appButton.setText('');
@@ -874,46 +889,107 @@ StableLabel.prototype = {
     }
 };
 
+// Function for extending leftbox
+function allocate(actor, box, flags) {
+    let allocWidth = box.x2 - box.x1;
+    let allocHeight = box.y2 - box.y1;
+
+    let [leftMinWidth, leftNaturalWidth] = Main.panel._leftBox.get_preferred_width(-1);
+    let [centerMinWidth, centerNaturalWidth] = Main.panel._centerBox.get_preferred_width(-1);
+    let [rightMinWidth, rightNaturalWidth] = Main.panel._rightBox.get_preferred_width(-1);
+
+    let sideWidth = allocWidth - rightNaturalWidth - centerNaturalWidth;
+
+    let childBox = new Clutter.ActorBox();
+
+    childBox.y1 = 0;
+    childBox.y2 = allocHeight;
+    if (Main.panel.actor.get_text_direction() == Clutter.TextDirection.RTL) {
+    childBox.x1 = allocWidth - Math.min(Math.floor(sideWidth), leftNaturalWidth);
+	childBox.x2 = allocWidth;
+    } else {
+	childBox.x1 = 0;
+	childBox.x2 = Math.min(Math.floor(sideWidth), leftNaturalWidth);
+    }
+    Main.panel._leftBox.allocate(childBox, flags);
+
+    childBox.y1 = 0;
+    childBox.y2 = allocHeight;
+    if (Main.panel.actor.get_text_direction() == Clutter.TextDirection.RTL) {
+	childBox.x1 = rightNaturalWidth;
+	childBox.x2 = childBox.x1 + centerNaturalWidth;
+    } else {
+	childBox.x1 = allocWidth - centerNaturalWidth - rightNaturalWidth;
+	childBox.x2 = childBox.x1 + centerNaturalWidth;
+    }
+    Main.panel._centerBox.allocate(childBox, flags);
+
+    childBox.y1 = 0;
+    childBox.y2 = allocHeight;
+    if (Main.panel.actor.get_text_direction() == Clutter.TextDirection.RTL) {
+	childBox.x1 = 0;
+	childBox.x2 = rightNaturalWidth;
+    } else {
+	childBox.x1 = allocWidth - rightNaturalWidth;
+	childBox.x2 = allocWidth;
+    }
+    Main.panel._rightBox.allocate(childBox, flags);
+
+    let [cornerMinWidth, cornerWidth] = Main.panel._leftCorner.actor.get_preferred_width(-1);
+    let [cornerMinHeight, cornerHeight] = Main.panel._leftCorner.actor.get_preferred_width(-1);
+    childBox.x1 = 0;
+    childBox.x2 = cornerWidth;
+    childBox.y1 = allocHeight;
+    childBox.y2 = allocHeight + cornerHeight;
+    Main.panel._leftCorner.actor.allocate(childBox, flags);
+
+    let [cornerMinWidth, cornerWidth] = Main.panel._rightCorner.actor.get_preferred_width(-1);
+    let [cornerMinHeight, cornerHeight] = Main.panel._rightCorner.actor.get_preferred_width(-1);
+    childBox.x1 = allocWidth - cornerWidth;
+    childBox.x2 = allocWidth;
+    childBox.y1 = allocHeight;
+    childBox.y2 = allocHeight + cornerHeight;
+    Main.panel._rightCorner.actor.allocate(childBox, flags);
+}
+
 function init() {
+    // Define dateMenu for moving clock
+    dateMenu = Main.panel.statusArea.dateMenu;
 }
 
 function enable() {
-    /* Move Clock - http://www.fpmurphy.com/gnome-shell-extensions/moveclock.tar.gz */
-    let _children = Main.panel._rightBox.get_children();
-    let _clock    = Main.panel._dateMenu;
-    restoreState["_dateMenu"] = _clock.actor.get_parent();
-    restoreState["_dateMenu"].remove_actor(_clock.actor);
-    // Add a wrapper around the clock so it won't get squished (ellipsized)
-    // and so that it doesn't resize when the time chagnes
-    clockWrapper = new StableLabel(_clock);
-    Main.panel._rightBox.insert_child_at_index(clockWrapper.actor, _children.length - 1);
+    // Move the clock to the left of user menu
+    Main.panel._centerBox.remove_actor(dateMenu.container);
+    let children = Main.panel._rightBox.get_children();
+    Main.panel._addToPanelBox('dateMenu', dateMenu, children.length-1, Main.panel._rightBox);
 
-    /* Remove Application Menu */
-    restoreState["applicationMenu"] = Main.panel._appMenu.actor;
-    Main.panel._leftBox.remove_actor(restoreState["applicationMenu"]);
+    // Remove Application Menu
+    Main.panel.statusArea.appMenu.actor.destroy();
 
-    /* Create and place the Window List */
+    // Extent the letfbox
+    panelConnectId = Main.panel.actor.connect('allocate', allocate);
+
+    // Create and place the Window List
     windowListManager = new WindowListManager();
+
     Main.panel._leftBox.add_actor(windowListManager.actor);
 }
 
 function disable() {
-    /* Remove the Window List and Destroy it*/
+    // Remove the Window List and Destroy it
     Main.panel._leftBox.remove_actor(windowListManager.actor);
     windowListManager.destroy();
     windowListManager = null;
 
-    /* Restore Application Menu */
-    Main.panel._leftBox.add(restoreState["applicationMenu"]);
+    // Restore Application Menu
+    Main.panel.statusArea['appMenu'] = null;
+    let indicator = new Panel.AppMenuButton(Main.panel);
+    Main.panel.addToStatusArea('appMenu',indicator, -1, 'left');
 
-    /* unmove the clock */
-    let _clock = Main.panel._dateMenu;
-    let _clock_parent = _clock.actor.get_parent();
-    if (_clock_parent) {
-        _clock_parent.remove_actor(_clock.actor);
-    }
-    if (restoreState["_dateMenu"]) {
-        restoreState["_dateMenu"].add(_clock.actor, 0);
-        clockWrapper.destroy();
-    }
+    // Restore left box to default size
+    Main.panel.actor.disconnect(panelConnectId);
+
+    // Move clock back to middle of panel
+    Main.panel._rightBox.remove_actor(dateMenu.container);
+    Main.panel._addToPanelBox('dateMenu', dateMenu, Main.sessionMode.panel.center.indexOf('dateMenu'), Main.panel._centerBox);
 }
