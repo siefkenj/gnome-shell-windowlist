@@ -964,7 +964,7 @@ function enable() {
     Main.panel._addToPanelBox('dateMenu', dateMenu, children.length-1, Main.panel._rightBox);
 
     // Remove Application Menu
-    Main.panel.statusArea.appMenu.actor.destroy();
+    Main.panel.statusArea.appMenu.destroy();
 
     // Extent the letfbox
     panelConnectId = Main.panel.actor.connect('allocate', allocate);
