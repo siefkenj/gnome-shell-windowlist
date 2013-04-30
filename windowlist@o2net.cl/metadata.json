@@ -1,5 +1,5 @@
 {
-"shell-version": ["3.6"],
+"shell-version": ["3.6", "3.8"],
 "uuid": "windowlist@o2net.cl",
 "name": "Window List",
 "description": "Add a window list to the top panel",
