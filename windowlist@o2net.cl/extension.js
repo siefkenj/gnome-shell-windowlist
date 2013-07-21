@@ -30,6 +30,8 @@ const Panel = imports.ui.panel;
 const PopupMenu = imports.ui.popupMenu;
 const PanelMenu = imports.ui.panelMenu;
 const Signals = imports.signals;
+const Gio = imports.gi.Gio;
+const GLib = imports.gi.GLib;
 
 const PANEL_ICON_SIZE = 24;
 const SPINNER_ANIMATION_TIME = 1;
@@ -966,6 +968,12 @@ function enable() {
     // Remove Application Menu
     Main.panel.statusArea.appMenu.destroy();
 
+    // Since we have no app menu anymore, tell apps to include it themselves.
+    // from RemovePanelAppMenu@evotex.ch
+    let value = GLib.Variant.new('a{sv}', { 'Gtk/ShellShowsAppMenu': GLib.Variant.new('i', 0) });
+    let xsetting = new Gio.Settings({ schema: 'org.gnome.settings-daemon.plugins.xsettings' });
+    xsetting.set_value('overrides', value);
+
     // Extent the letfbox
     panelConnectId = Main.panel.actor.connect('allocate', allocate);
 
@@ -984,7 +992,12 @@ function disable() {
     // Restore Application Menu
     Main.panel.statusArea['appMenu'] = null;
     let indicator = new Panel.AppMenuButton(Main.panel);
-    Main.panel.addToStatusArea('appMenu',indicator, -1, 'left');
+    Main.panel.addToStatusArea('appMenu', indicator, -1, 'left');
+
+    // Re-enable use of application menu
+    let value = GLib.Variant.new('a{sv}', { 'Gtk/ShellShowsAppMenu': GLib.Variant.new('i', 1) });
+    let xsetting = new Gio.Settings({ schema: 'org.gnome.settings-daemon.plugins.xsettings' });
+    xsetting.set_value('overrides', value);
 
     // Restore left box to default size
     Main.panel.actor.disconnect(panelConnectId);
