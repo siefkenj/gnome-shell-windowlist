@@ -241,7 +241,11 @@ AppButton.prototype = {
         // pixel isn't reactive..., so changing the multiplication
         // factor to 1 means that moving the mouse to the top of the
         // screen will fail to activate a list item.
-        this.icon = this.app.get_faded_icon(2 * params.iconSize, Clutter.TextDirection.LTR);
+        try {
+            this.icon = this.app.get_faded_icon(2 * params.iconSize);
+        } catch (e) {
+            this.icon = this.app.get_faded_icon(2 * params.iconSize, Clutter.TextDirection.LTR);
+        }
         IconLabelButton.prototype._init.call(this, this.icon, params.textOffsetFactor);
 
         let tracker = Shell.WindowTracker.get_default();
@@ -288,7 +292,11 @@ WindowButton.prototype = {
             let tracker = Shell.WindowTracker.get_default();
             this.app = tracker.get_window_app(metaWindow);
         }
-        this.icon = this.app.get_faded_icon(2 * params.iconSize, Clutter.TextDirection.LTR);
+        try {
+            this.icon = this.app.get_faded_icon(2 * params.iconSize);
+        } catch (e) {
+            this.icon = this.app.get_faded_icon(2 * params.iconSize, Clutter.TextDirection.LTR);
+        }
         IconLabelButton.prototype._init.call(this, this.icon, params.textOffsetFactor);
         this.signals = [];
 
