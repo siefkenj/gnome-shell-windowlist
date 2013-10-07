@@ -698,8 +698,7 @@ WindowThumbnail.prototype = {
         }
         this._updateWindowOptions();
 
-        this.actor.add(this.windowOptions, {expand: false, x_fill: false,
-            x_align: St.Align.MIDDLE});
+        this.actor.insert_child_at_index(this.windowOptions, 0);
 
         // make the window options half-overlap this.actor.
         // Mainloop needed while we weight for height/width to be allocated.
