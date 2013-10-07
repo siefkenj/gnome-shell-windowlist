@@ -405,7 +405,7 @@ PopupMenuThumbnailItem.prototype = {
         PopupMenu.PopupBaseMenuItem.prototype._init.call(this, params);
 
         this.image = image;
-        this.addActor(this.image);
+        this.actor.add_child(this.image);
     }
 };
 
@@ -439,7 +439,7 @@ PopupMenuAppSwitcherItem.prototype = {
 
         this._refresh();
 
-        this.addActor(this.appContainer);
+        this.actor.add_child(this.appContainer);
     },
 
     setMetaWindow: function(metaWindow) {
