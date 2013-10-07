@@ -405,7 +405,7 @@ PopupMenuThumbnailItem.prototype = {
         PopupMenu.PopupBaseMenuItem.prototype._init.call(this, params);
 
         this.image = image;
-        this.addActor(this.image);
+        this.actor.add_child(this.image);
     }
 };
 
@@ -439,7 +439,7 @@ PopupMenuAppSwitcherItem.prototype = {
 
         this._refresh();
 
-        this.addActor(this.appContainer);
+        this.actor.add_child(this.appContainer);
     },
 
     setMetaWindow: function(metaWindow) {
@@ -698,8 +698,7 @@ WindowThumbnail.prototype = {
         }
         this._updateWindowOptions();
 
-        this.actor.add(this.windowOptions, {expand: false, x_fill: false,
-            x_align: St.Align.MIDDLE});
+        this.actor.insert_child_at_index(this.windowOptions, 0);
 
         // make the window options half-overlap this.actor.
         // Mainloop needed while we weight for height/width to be allocated.
