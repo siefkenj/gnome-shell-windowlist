@@ -316,7 +316,8 @@ AppTracker.prototype = {
     },
 
     is_window_interesting: function(metaWindow) {
-        return this.tracker.is_window_interesting(metaWindow);
+        return true;
+        //return this.tracker.is_window_interesting(metaWindow);
     }
 };
 
@@ -476,6 +477,7 @@ AppGroup.prototype = {
         }
 
         let tracker = Shell.WindowTracker.get_default();
+        tracker.is_window_interesting = tracker.is_window_interesting || function () { return true; };
         // Get a list of all interesting windows that are part of this app on the current workspace
         let windowList = metaWorkspace.list_windows().filter(Lang.bind(this, function(metaWindow) {
             try {
@@ -504,6 +506,7 @@ AppGroup.prototype = {
 
     _windowAdded: function(metaWorkspace, metaWindow) {
         let tracker = Shell.WindowTracker.get_default();
+        tracker.is_window_interesting = tracker.is_window_interesting || function () { return true; };
         if (tracker.get_window_app(metaWindow) == this.app && !this.metaWindows.contains(metaWindow) && tracker.is_window_interesting(metaWindow)) {
             let button = new SpecialButtons.WindowButton({ app: this.app,
                                                            metaWindow: metaWindow,
@@ -657,6 +660,7 @@ AppList.prototype = {
         // create an app group.
         //let tracker = Shell.WindowTracker.get_default();
         let tracker = this._tracker;
+        tracker.is_window_interesting = tracker.is_window_interesting || function () { return true; };
         let app;
         try {
             app = tracker.get_window_app(metaWindow);
@@ -716,6 +720,7 @@ AppList.prototype = {
         // to has no windows left.  If so, we need to remove the corresponding AppGroup
         //let tracker = Shell.WindowTracker.get_default();
         let tracker = this._tracker;
+        tracker.is_window_interesting = tracker.is_window_interesting || function () { return true; };
         let app;
         try {
             app = tracker.get_window_app(metaWindow);
